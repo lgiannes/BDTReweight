@@ -50,9 +50,9 @@ VARIABLE_LATEX_SYMBOL = {
     'E':'E',
     'KE':'T',
     'theta':'\\theta',
-    'dalphat':'d\\alpha_T',
-    'dphit':'d\phi_T',
-    'dpt':'dp_T',
+    'dalphat':'\delta\\alpha_T',
+    'dphit':'\delta\phi_T',
+    'dpt':'\delta p_T',
     'nu':'\\nu',
     'Q2':'Q^2',
     'q0':'q_0',
@@ -61,19 +61,20 @@ VARIABLE_LATEX_SYMBOL = {
 }
 
 VARIABLE_UNIT = {
-    'px':'GeV/c',
-    'py':'GeV/c',
-    'pz':'GeV/c',
+    'px':'GeV·c$^{-1}$',
+    'py':'GeV·c$^{-1}$',
+    'pz':'GeV·c$^{-1}$',
     'E':'GeV',
     'KE':'GeV',
+    'mass':'GeV·c$^{-2}$',
     'theta':'rad',
     'dalphat':'rad',
     'dphit':'rad',
-    'dpt':'GeV/c',
+    'dpt':'GeV·c$^{-1}$',
     'nu':'GeV',
-    'Q2':'(GeV/c)^2$',
+    'Q2':'GeV$^{2}$·c$^{-2}$',
     'q0':'GeV',
-    'q3':'GeV/c',
+    'q3':'GeV·c$^{-1}$',
 }
 
 def particle_variable_to_latex(expr : str, add_unit : bool = True) -> str:
