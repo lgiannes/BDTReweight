@@ -130,7 +130,7 @@ def calculate_weighted_diff_histogram_and_stat_errors(var : ArrayLike, weights :
 
 def draw_source_target_distributions_and_ratio(source : pd.DataFrame, target : pd.DataFrame, variables : list = [],
         source_weights : ArrayLike = None, new_source_weights : ArrayLike = None,  target_weights : ArrayLike = None,
-        scale_source : float = 1.0, scale_target : float = 1.0) -> None:
+        scale_source : float = 1.0, scale_target : float = 1.0, xlabels : list = None, ylabels : list = None) -> None:
     """
     Draw distributions of variables of source, source reweighted, and
     target sample in grids of subplots. 
@@ -216,13 +216,17 @@ def draw_source_target_distributions_and_ratio(source : pd.DataFrame, target : p
         h3, e3 = hist_plot(target[variable], target_weights, scale_target, 'red', label='target', offset=0)
 
 
-        ax_main.set_ylabel('diff counts')            
+        if ylabels is not None:
+            ax_main.set_ylabel(ylabels[idx])
+        else:
+            ax_main.set_ylabel('diff counts')
         ax_main.set_xlim(bins[0], bins[-1])
         ax_main.set_ylim(0, None)
         ax_main.tick_params(which='both', direction='in', top=True, right=True)
         ax_main.minorticks_on()
         ax_main.ticklabel_format(style='sci', axis='y', scilimits=(0,0))
-        ax_main.legend(frameon=False)
+        ax_main.legend(frameon=False, fontsize = 8)
+        plt.setp(ax_main.get_xticklabels(), visible=False)
 
 
         # ratio plot of source / target
@@ -249,8 +253,10 @@ def draw_source_target_distributions_and_ratio(source : pd.DataFrame, target : p
             ax_ratio.set_ylim(0,2)
             ax_ratio.yaxis.tick_right()
             ax_ratio.yaxis.set_label_position("right")
-            
-            ax_ratio.set_xlabel(variable)
+            if xlabels is not None:
+                ax_ratio.set_xlabel(xlabels[idx])
+            else:
+                ax_ratio.set_xlabel(variable)
 
     fig.subplots_adjust(bottom=0.1)
     plt.show()

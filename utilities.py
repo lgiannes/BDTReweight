@@ -29,6 +29,114 @@ PARTICLE_MASS = {
     'genieBindino':0.0
 }
 
+PARTICLE_LATEX_SYMBOL = {
+    'proton':'p',
+    'neutron':'n',
+    'muon':'\mu^-',
+    'electron':'\e^-',
+    'numu':'\\nu_\mu',
+    'nue':'\\nu_\e',
+    'photon':'\gamma',
+    'pip':'\pi^+',
+    'pim':'\pi^-',
+    'pi0':'\pi^0',
+    'genieBindino':'genieBindino'
+}
+
+VARIABLE_LATEX_SYMBOL = {
+    'px':'p_x',
+    'py':'p_y',
+    'pz':'p_z',
+    'E':'E',
+    'KE':'T',
+    'theta':'\\theta',
+    'dalphat':'d\\alpha_T',
+    'dphit':'d\phi_T',
+    'dpt':'dp_T',
+    'nu':'\\nu',
+    'Q2':'Q^2',
+    'q0':'q_0',
+    'q3':'|\mathbf{q}|',
+    'weight':'weight'
+}
+
+VARIABLE_UNIT = {
+    'px':'GeV/c',
+    'py':'GeV/c',
+    'pz':'GeV/c',
+    'E':'GeV',
+    'KE':'GeV',
+    'theta':'rad',
+    'dalphat':'rad',
+    'dphit':'rad',
+    'dpt':'GeV/c',
+    'nu':'GeV',
+    'Q2':'(GeV/c)^2$',
+    'q0':'GeV',
+    'q3':'GeV/c',
+}
+
+def particle_variable_to_latex(expr : str, add_unit : bool = True) -> str:
+    """
+    Return the latex symbol string of given particle variable
+    expression.
+
+    Parameters
+    ----------
+    expr : str
+        string of particle variable expression.
+    add_unit : bool
+        If True, '(unit)' will be appended to the symbol.
+        default: True. 
+    
+    Returns
+    ----------
+    str
+        Latex string of particle variable.
+    """
+
+    if expr in VARIABLE_LATEX_SYMBOL.keys():
+        unit = f' ({VARIABLE_UNIT[expr]})' if (add_unit is True and expr in VARIABLE_UNIT.keys()) else ''
+        return f'${VARIABLE_LATEX_SYMBOL[expr]}${unit}'
+        
+    selector, particle, variable = expr.split('_')
+    particle_symbol = PARTICLE_LATEX_SYMBOL.get(particle, 'particle')
+    variable_symbol = VARIABLE_LATEX_SYMBOL.get(variable, 'variable')
+
+    if selector in ['leading', 'subleading']:
+        latex = f'{selector} ${particle_symbol}$ ${variable_symbol}$'
+    elif selector == 'total':
+        latex = f'$\sum_{particle_symbol}$ ${variable_symbol}$'
+    unit = f' ({VARIABLE_UNIT[variable]})' if (add_unit is True and variable in VARIABLE_UNIT.keys()) else ''
+    return latex + unit
+
+def diff_xsec_latex_wrt_variable(expr : str, add_unit : bool = True) -> str:
+    """
+    Return the latex symbol string of differential cross-section
+    w.r.t. given particle variable expression.
+
+    Parameters
+    ----------
+    expr : str
+        string of particle variable expression.
+    add_unit : bool
+        If True, '(unit)' will be appended to the symbol.
+        default: True. 
+
+    Returns
+    ----------
+    str
+        Latex string of differential cross-section w.r.t. particle
+        variable.
+    """
+    if expr in VARIABLE_LATEX_SYMBOL.keys():
+        unit = ' $(\\frac{cm^2}{'+VARIABLE_UNIT[expr]+'})$' if (add_unit is True and expr in VARIABLE_UNIT.keys()) else ''
+        return '$\\frac{d\sigma}{d'+VARIABLE_LATEX_SYMBOL[expr]+'}$' + unit
+    else:
+        _, _, variable = expr.split('_')
+        unit = ' $(\\frac{cm^2}{'+VARIABLE_UNIT[variable]+'})$' if (add_unit is True and variable in VARIABLE_UNIT.keys()) else ''
+        return '$\\frac{d\sigma}{d'+VARIABLE_LATEX_SYMBOL[variable]+'}$' + unit
+
 def particle_pdg_lookup(particle : str) -> int:
     """
     Return the pdg code of given particle name.
