@@ -185,7 +185,7 @@ def draw_source_target_distributions_and_ratio(source : pd.DataFrame, target : p
 
         if variable == 'weight':
             # plot source sample new weights
-            ax_main.hist(new_source_weights*len(new_source_weights)/np.sum(new_source_weights), log=True, bins=30, alpha=alpha, color='goldenrod')
+            ax_main.hist(new_source_weights, log=True, bins=30, alpha=alpha, color='goldenrod')
             ax_main.set_xlim(0, None)
             ax_main.set_xlabel('source sample new weights')
             ax_main.set_ylabel('counts (log scale)')
