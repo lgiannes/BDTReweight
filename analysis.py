@@ -130,7 +130,7 @@ def calculate_weighted_diff_histogram_and_stat_errors(var : ArrayLike, weights :
 
 def draw_source_target_distributions_and_ratio(source : pd.DataFrame, target : pd.DataFrame, variables : list = [],
         source_weights : ArrayLike = None, new_source_weights : ArrayLike = None,  target_weights : ArrayLike = None,
-        scale_source : float = 1.0, scale_target : float = 1.0, xlabels : list = None, ylabels : list = None) -> None:
+        scale_source : float = 1.0, scale_target : float = 1.0, xlabels : list = None, ylabels : list = None, quantile_range : tuple = [0.0, 1.0]) -> None:
     """
     Draw distributions of variables of source, source reweighted, and
     target sample in grids of subplots. 
@@ -154,6 +154,13 @@ def draw_source_target_distributions_and_ratio(source : pd.DataFrame, target : p
         Scale factor for source sample.
     scale_target : float, optional
         Scale factor for target sample.
+    xlabels : list, optional
+        strings of x-axis labels.
+    ylabels : list, optional
+        strings of y-axis labels.
+    quntile_range : tuple, optional
+        float values (0.0 ~ 1.0) to specify the quantiles of data
+        to be plotted. Use this to set  
 
     Returns
     ----------
@@ -191,9 +198,9 @@ def draw_source_target_distributions_and_ratio(source : pd.DataFrame, target : p
             ax_main.set_ylabel('counts (log scale)')
             continue
 
-        # drop edgy values for a better plotting for majority of data
-        x_min = min(np.quantile(source[variable], 0.005),np.quantile(target[variable], 0.005))
-        x_max = min(np.quantile(source[variable], 0.995),np.quantile(target[variable], 0.995))
+        # Plot the selected quantile rage of data to depict majority of data
+        x_min = min(np.quantile(source[variable], quantile_range[0]),np.quantile(target[variable], quantile_range[0]))
+        x_max = min(np.quantile(source[variable], quantile_range[1]),np.quantile(target[variable], quantile_range[1]))
 
         # plot histogram with evenly bins of size 30
         bins = np.linspace(x_min, x_max, 30)
