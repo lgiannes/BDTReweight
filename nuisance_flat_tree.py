@@ -312,7 +312,7 @@ class NuisanceFlatTree:
 
         return num_particles
     
-    def get_event_variable(self, expr : str, mask : ArrayLike = None) -> ak.highlevel.Array:
+    def get_event_variable(self, expr : str, mask : ArrayLike = None, ignore_vert_particles : int = 0) -> ak.highlevel.Array:
         """
         Get the event-level quantity from NUISANCe flat tree 
         (self._flattree_vars).
@@ -327,9 +327,22 @@ class NuisanceFlatTree:
             Selector options: 'leading','subleading','total'
             Particle options: 'muon','electron','proton','neutron',
                 'photon','pip','pim','pi0'
-            Variable options: 'px','py','pz','E','KE'
+            Variable options: 'px','py','pz','E','KE',
+                'pxvert','pyvert','pzvert','Evert','KEvert'
+                where postfix "vert" means pre FSI values at
+                interaction vertex (excluding initial particles).
         mask : 1d int or bool tuple, optional
             Masking applied to self._flattree_vars before selection.
+        ignore_vert_particles : int, optional
+            Ignore the first few particles in the vertex particles
+            lists. Required when accessing vertex particle variables.
+            For example, if vertex pdg list is:
+                [14, 2112, 2212, 13, 2212, 2212]
+            then setting ignore_init_entries = 3 will ignore elements
+            at first 3 positions, i.e, those of
+                [14, 2112, 2212]
+            (so to help ignore init particles' kinematic info, etc.)
+            Default: 0 (not ignoring any vertex particles).
 
         Returns
         ----------
@@ -372,39 +385,80 @@ class NuisanceFlatTree:
                 raise ValueError(f'Selector not registered: {selector}')
             if particle not in ['muon', 'electron', 'proton', 'neutron', 'photon', 'pip', 'pim', 'pi0']:
                 raise ValueError(f'Particle not registered: {particle}')
-            if variable not in ['px', 'py', 'pz', 'E', 'KE']:
+            if variable not in ['px', 'py', 'pz', 'E', 'KE', 'pxvert', 'pyvert', 'pzvert', 'Evert', 'KEvert']:
                 raise ValueError(f'Variable not registered: {variable}')
 
-            # create particle mask by matching pdg 
-            is_particle = self._flattree_vars[mask]['pdg'] == particle_pdg_lookup(particle)
+            # create particle mask by matching pdg or pdg_vert
+            if variable.endswith('vert'):
+                is_particle = self._flattree_vars[mask]['pdg_vert'] == particle_pdg_lookup(particle)
+                # ignore initial particles in vert lists
+                mask_ignore_init = ak.local_index(self._flattree_vars['pdg_vert']) >= ignore_vert_particles
+                is_particle = is_particle & mask_ignore_init
+            else:
+                is_particle = self._flattree_vars[mask]['pdg'] == particle_pdg_lookup(particle)
 
             if selector == 'leading':
                 if variable == 'E':
                     selected = ak.max(self._flattree_vars[mask]['E'][is_particle], axis=1)
                 elif variable == 'KE':
                     selected = ak.max(self._flattree_vars[mask]['E'][is_particle], axis=1) - particle_mass_lookup(particle)
-                else:
+                elif variable in ['px', 'py', 'pz']:
                     # sort E to find the index of leading particle
                     leading_idx = ak.argmax(self._flattree_vars[mask]['E'][is_particle], axis=1, keepdims=True)
                     selected = ak.firsts(self._flattree_vars[mask][variable][is_particle][leading_idx])
+                elif variable == 'Evert':
+                    selected = ak.max(self._flattree_vars[mask]['E_vert'][is_particle], axis=1)
+                elif variable == 'KEvert':
+                    selected = ak.max(self._flattree_vars[mask]['E_vert'][is_particle], axis=1) - particle_mass_lookup(particle)
+                elif variable == 'pxvert':
+                    leading_idx = ak.argmax(self._flattree_vars[mask]['E_vert'][is_particle], axis=1, keepdims=True)
+                    selected = ak.firsts(self._flattree_vars[mask]['px_vert'][is_particle][leading_idx])
+                elif variable == 'pyvert':
+                    leading_idx = ak.argmax(self._flattree_vars[mask]['E_vert'][is_particle], axis=1, keepdims=True)
+                    selected = ak.firsts(self._flattree_vars[mask]['py_vert'][is_particle][leading_idx])
+                elif variable == 'pzvert':
+                    leading_idx = ak.argmax(self._flattree_vars[mask]['E_vert'][is_particle], axis=1, keepdims=True)
+                    selected = ak.firsts(self._flattree_vars[mask]['pz_vert'][is_particle][leading_idx])
             elif selector == 'subleading':
                 # sort the particle energy in descending order
                 # (0: highest, 1: second highest...)
-                order = ak.argsort(self._flattree_vars[mask]['E'][is_particle], axis=1, ascending=False)
+                if variable.endswith('vert'):
+                    order = ak.argsort(self._flattree_vars[mask]['E_vert'][is_particle], axis=1, ascending=False)
+                else:
+                    order = ak.argsort(self._flattree_vars[mask]['E'][is_particle], axis=1, ascending=False)
                 # use ak.pad_none to fill None when there's no 2nd
                 # particle
                 if variable == 'KE':
                     selected = ak.pad_none(self._flattree_vars[mask]['E'][is_particle][order],2)[:,1] - particle_mass_lookup(particle)
-                else:
+                elif variable in ['E', 'px', 'py', 'pz']:
                     selected = ak.pad_none(self._flattree_vars[mask][variable][is_particle][order],2)[:,1]
-            else: # selector == 'leading'
-                # when final state has no requested particle, the sum
-                # is set to None
+                elif variable == 'KEvert':
+                    selected = ak.pad_none(self._flattree_vars[mask]['E_vert'][is_particle][order],2)[:,1] - particle_mass_lookup(particle)
+                elif variable == 'Evert':
+                    selected = ak.pad_none(self._flattree_vars[mask]['E_vert'][is_particle][order],2)[:,1]
+                elif variable == 'pxvert':
+                    selected = ak.pad_none(self._flattree_vars[mask]['px_vert'][is_particle][order],2)[:,1]
+                elif variable == 'pyvert':
+                    selected = ak.pad_none(self._flattree_vars[mask]['py_vert'][is_particle][order],2)[:,1]
+                elif variable == 'pzvert':
+                    selected = ak.pad_none(self._flattree_vars[mask]['pz_vert'][is_particle][order],2)[:,1]
+            elif selector == 'total':
+                # Note that when final state has no requested
+                # particle, the sum result is set to None
                 if variable == 'KE':
                     # subtract mass * no. of particle from total E
                     selected = ak.sum(self._flattree_vars[mask]['E'][is_particle], axis=1, mask_identity=True) - particle_mass_lookup(particle)*ak.sum(is_particle, axis=1)
-                else:
+                elif variable in ['E', 'px', 'py', 'pz']:
                     selected = ak.sum(self._flattree_vars[mask][variable][is_particle], axis=1, mask_identity=True)
-
+                elif variable == 'Evert':
+                    selected = ak.sum(self._flattree_vars[mask]['E_vert'][is_particle], axis=1, mask_identity=True)
+                elif variable == 'KEvert':
+                    selected = ak.sum(self._flattree_vars[mask]['E_vert'][is_particle], axis=1, mask_identity=True) - particle_mass_lookup(particle)*ak.sum(is_particle, axis=1)
+                elif variable == 'pxvert':
+                    selected = ak.sum(self._flattree_vars[mask]['px_vert'][is_particle], axis=1, mask_identity=True)
+                elif variable == 'pyvert':
+                    selected = ak.sum(self._flattree_vars[mask]['py_vert'][is_particle], axis=1, mask_identity=True)
+                elif variable == 'pzvert':
+                    selected = ak.sum(self._flattree_vars[mask]['pz_vert'][is_particle], axis=1, mask_identity=True)
         return selected
 
