@@ -57,24 +57,24 @@ VARIABLE_LATEX_SYMBOL = {
     'Q2':'Q^2',
     'q0':'q_0',
     'q3':'|\mathbf{q}|',
-    'weight':'weight'
+    'weight':'\\text{weight}'
 }
 
 VARIABLE_UNIT = {
-    'px':'GeV·c$^{-1}$',
-    'py':'GeV·c$^{-1}$',
-    'pz':'GeV·c$^{-1}$',
-    'E':'GeV',
-    'KE':'GeV',
-    'mass':'GeV·c$^{-2}$',
-    'theta':'rad',
-    'dalphat':'rad',
-    'dphit':'rad',
-    'dpt':'GeV·c$^{-1}$',
-    'nu':'GeV',
-    'Q2':'GeV$^{2}$·c$^{-2}$',
-    'q0':'GeV',
-    'q3':'GeV·c$^{-1}$',
+    'px':'\\text{GeV·c}^{-1}',
+    'py':'\\text{GeV·c}^{-1}',
+    'pz':'\\text{GeV·c}^{-1}',
+    'E':'\\text{GeV}',
+    'KE':'\\text{GeV}',
+    'mass':'\\text{GeV·c}^{-2}',
+    'theta':'\\text{rad}',
+    'dalphat':'\\text{rad}',
+    'dphit':'\\text{rad}',
+    'dpt':'\\text{GeV·c}^{-1}',
+    'nu':'\\text{GeV}',
+    'Q2':'\\text{GeV}^{2}·c^{-2}',
+    'q0':'\\text{GeV}',
+    'q3':'\\text{GeV·c}^{-1}',
 }
 
 def particle_variable_to_latex(expr : str, add_unit : bool = True) -> str:
@@ -97,8 +97,8 @@ def particle_variable_to_latex(expr : str, add_unit : bool = True) -> str:
     """
 
     if expr in VARIABLE_LATEX_SYMBOL.keys():
-        unit = f' ({VARIABLE_UNIT[expr]})' if (add_unit is True and expr in VARIABLE_UNIT.keys()) else ''
-        return f'${VARIABLE_LATEX_SYMBOL[expr]}${unit}'
+        unit = f' $\left({VARIABLE_UNIT[expr]}\\right)$' if (add_unit is True and expr in VARIABLE_UNIT.keys()) else ''
+        return f'${VARIABLE_LATEX_SYMBOL[expr]}$' + unit
         
     selector, particle, variable = expr.split('_')
     particle_symbol = PARTICLE_LATEX_SYMBOL.get(particle, 'particle')
@@ -108,7 +108,7 @@ def particle_variable_to_latex(expr : str, add_unit : bool = True) -> str:
         latex = f'{selector} ${particle_symbol}$ ${variable_symbol}$'
     elif selector == 'total':
         latex = f'$\sum_{particle_symbol}$ ${variable_symbol}$'
-    unit = f' ({VARIABLE_UNIT[variable]})' if (add_unit is True and variable in VARIABLE_UNIT.keys()) else ''
+    unit = f' $\left({VARIABLE_UNIT[variable]}\\right)$' if (add_unit is True and variable in VARIABLE_UNIT.keys()) else ''
     return latex + unit
 
 def diff_xsec_latex_wrt_variable(expr : str, add_unit : bool = True) -> str:
@@ -131,11 +131,11 @@ def diff_xsec_latex_wrt_variable(expr : str, add_unit : bool = True) -> str:
         variable.
     """
     if expr in VARIABLE_LATEX_SYMBOL.keys():
-        unit = ' $(\\frac{cm^2}{'+VARIABLE_UNIT[expr]+'})$' if (add_unit is True and expr in VARIABLE_UNIT.keys()) else ''
+        unit = ' $\left(\\frac{\\text{cm}^2}{'+VARIABLE_UNIT[expr]+'}\\right)$' if (add_unit is True and expr in VARIABLE_UNIT.keys()) else ''
         return '$\\frac{d\sigma}{d'+VARIABLE_LATEX_SYMBOL[expr]+'}$' + unit
     else:
         _, _, variable = expr.split('_')
-        unit = ' $(\\frac{cm^2}{'+VARIABLE_UNIT[variable]+'})$' if (add_unit is True and variable in VARIABLE_UNIT.keys()) else ''
+        unit = ' $\left(\\frac{\\text{cm}^2}{'+VARIABLE_UNIT[variable]+'}\\right)$' if (add_unit is True and variable in VARIABLE_UNIT.keys()) else ''
         return '$\\frac{d\sigma}{d'+VARIABLE_LATEX_SYMBOL[variable]+'}$' + unit
 
 def particle_pdg_lookup(particle : str) -> int:
