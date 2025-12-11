@@ -40,7 +40,7 @@ PARTICLE_LATEX_SYMBOL = {
     'pip':'\pi^+',
     'pim':'\pi^-',
     'pi0':'\pi^0',
-    'genieBindino':'genieBindino'
+    'genieBindino':'\\text{genieBindino}'
 }
 
 VARIABLE_LATEX_SYMBOL = {
@@ -57,24 +57,26 @@ VARIABLE_LATEX_SYMBOL = {
     'Q2':'Q^2',
     'q0':'q_0',
     'q3':'|\mathbf{q}|',
+    'Enu_true':'E_{\\nu,\\text{true}}',
     'weight':'\\text{weight}'
 }
 
 VARIABLE_UNIT = {
-    'px':'\\text{GeV·c}^{-1}',
-    'py':'\\text{GeV·c}^{-1}',
-    'pz':'\\text{GeV·c}^{-1}',
+    'px':'\\text{GeV}/c',
+    'py':'\\text{GeV}/c',
+    'pz':'\\text{GeV}/c',
     'E':'\\text{GeV}',
     'KE':'\\text{GeV}',
-    'mass':'\\text{GeV·c}^{-2}',
+    'mass':'\\text{GeV}/c^2',
     'theta':'\\text{rad}',
     'dalphat':'\\text{rad}',
     'dphit':'\\text{rad}',
-    'dpt':'\\text{GeV·c}^{-1}',
+    'dpt':'\\text{GeV}/c',
     'nu':'\\text{GeV}',
-    'Q2':'\\text{GeV}^{2}·c^{-2}',
+    'Q2':'\\text{GeV}^{2}/c^2',
     'q0':'\\text{GeV}',
-    'q3':'\\text{GeV·c}^{-1}',
+    'q3':'\\text{GeV}/c',
+    'Enu_true':'\\text{GeV}'
 }
 
 def particle_variable_to_latex(expr : str, add_unit : bool = True) -> str:
@@ -103,11 +105,16 @@ def particle_variable_to_latex(expr : str, add_unit : bool = True) -> str:
     selector, particle, variable = expr.split('_')
     particle_symbol = PARTICLE_LATEX_SYMBOL.get(particle, 'particle')
     variable_symbol = VARIABLE_LATEX_SYMBOL.get(variable, 'variable')
+    if variable == 'KE':
+        variable_symbol += '_{' + particle_symbol + '}'
 
     if selector in ['leading', 'subleading']:
-        latex = f'{selector} ${particle_symbol}$ ${variable_symbol}$'
+        if particle in ['proton', 'neutron']:
+            latex = f'{selector} {particle} ${variable_symbol}$'
+        else:
+            latex = f'{particle} ${variable_symbol}$'
     elif selector == 'total':
-        latex = f'$\sum_{particle_symbol}$ ${variable_symbol}$'
+        latex = '$\sum_{\\text{' + particle + '}}$ ${' + variable_symbol + '}$'
     unit = f' $\left({VARIABLE_UNIT[variable]}\\right)$' if (add_unit is True and variable in VARIABLE_UNIT.keys()) else ''
     return latex + unit
 
