@@ -3,7 +3,9 @@ import numpy as np
 from numpy.typing import ArrayLike
 import awkward as ak
 import matplotlib.pyplot as plt
+from hep_ml.metrics_utils import ks_2samp_weighted
 from matplotlib.gridspec import GridSpec, GridSpecFromSubplotSpec
+from matplotlib.ticker import ScalarFormatter
 from .utilities import normalize_vectors
 from .nuisance_flat_tree import NuisanceFlatTree
 
@@ -128,9 +130,10 @@ def calculate_weighted_diff_histogram_and_stat_errors(var : ArrayLike, weights :
     errors = np.sqrt(sum_w2) * scale_factor / bin_widths
     return diff_counts, errors
 
-def draw_source_target_distributions_and_ratio(source : pd.DataFrame, target : pd.DataFrame, variables : list = [],
-        source_weights : ArrayLike = None, new_source_weights : ArrayLike = None,  target_weights : ArrayLike = None,
-        scale_source : float = 1.0, scale_target : float = 1.0, xlabels : list = None, ylabels : list = None, quantile_range : tuple = [0.0, 1.0]) -> None:
+def draw_source_target_distributions_and_ratio(source : pd.DataFrame, target : pd.DataFrame, variables : list = [], bottom_adjust : float = 0.1,
+        legends : list = ['', '', ''], KS_test : bool = True, source_weights : ArrayLike = None, new_source_weights : ArrayLike = None,
+        target_weights : ArrayLike = None, scale_source : float = 1.0, scale_target : float = 1.0, xlabels : list = None, ylabels : list = None,
+        quantile_range : tuple = [0.005, 0.995]) -> None:
     """
     Draw distributions of variables of source, source reweighted, and
     target sample in grids of subplots. 
@@ -144,6 +147,17 @@ def draw_source_target_distributions_and_ratio(source : pd.DataFrame, target : p
     variables : list
         List of physical quantities to be plotted, such as
         'leading_proton_px', 'subleading_proton_KE', 'weight', etc.
+    bottom_adjust : float
+        Value passed to plt.subplot_adjust() to adjust figure bottowm.
+        Default: 0.1
+    legends : list, optional
+        List of string of legends corresponding to source sample,
+        source sample reweighted, and target sample.
+        Default: ['', '', '']
+    KS_test : bool, optional
+        If True, a KS test score between source (or source reweighted)
+        and target distributions is printed on top right of subplot.
+        Default: True 
     source_weights : ArrayLike
         Array of old weights for source sample events.
     new_source_weights : ArrayLike
@@ -160,7 +174,9 @@ def draw_source_target_distributions_and_ratio(source : pd.DataFrame, target : p
         strings of y-axis labels.
     quntile_range : tuple, optional
         float values (0.0 ~ 1.0) to specify the quantiles of data
-        to be plotted. Use this to set  
+        to be plotted. Use this to constrain plot range for better
+        visualization.
+        Default: [0.005, 0.995]
 
     Returns
     ----------
@@ -172,7 +188,8 @@ def draw_source_target_distributions_and_ratio(source : pd.DataFrame, target : p
     figheight = int((n_plots - 1) / 3 + 1)
     fig = plt.figure(figsize=[15, 3 * figheight], dpi=200)
     alpha= 0.5
-    outer_grid = GridSpec(figheight, 3, figure=fig, wspace=0.25, hspace=0.3)
+    outer_grid = GridSpec(figheight, 3, figure=fig, wspace=0.25, hspace=0.32)
+    handles, labels = [], []
     
     # loop through variables and plot
     for idx, variable in enumerate(variables):
@@ -189,12 +206,14 @@ def draw_source_target_distributions_and_ratio(source : pd.DataFrame, target : p
             ax_main = fig.add_subplot(inner_grid[0])
             ax_ratio = None
 
+        ax_main.text(1.00, 1.02, f'{chr(ord("a")+idx)}.', transform=ax_main.transAxes,ha='right', va='bottom')
 
         if variable == 'weight':
             # plot source sample new weights
             ax_main.hist(new_source_weights, log=True, bins=30, alpha=alpha, color='goldenrod')
+            ax_main.tick_params(which='both', direction='in')
             ax_main.set_xlim(0, None)
-            ax_main.set_xlabel('source sample new weights')
+            ax_main.set_xlabel(f'new weights')
             ax_main.set_ylabel('counts (log scale)')
             continue
 
@@ -216,11 +235,11 @@ def draw_source_target_distributions_and_ratio(source : pd.DataFrame, target : p
             return diff_counts, errors
 
         # plot source before reweight
-        h1, e1 = hist_plot(source[variable], source_weights, scale_source, 'green', label='source', offset=-0.3)
+        h1, e1 = hist_plot(source[variable], source_weights, scale_source, 'green', label=legends[0], offset=-0.3)
         # plot source after reweight
-        h2, e2 = hist_plot(source[variable], new_source_weights, scale_source, 'blue', label='source rwt', offset=0.3)
+        h2, e2 = hist_plot(source[variable], new_source_weights, scale_source, 'blue', label=legends[1], offset=0.3)
         # plot target
-        h3, e3 = hist_plot(target[variable], target_weights, scale_target, 'red', label='target', offset=0)
+        h3, e3 = hist_plot(target[variable], target_weights, scale_target, 'red', label=legends[2], offset=0)
 
 
         if ylabels is not None:
@@ -231,8 +250,11 @@ def draw_source_target_distributions_and_ratio(source : pd.DataFrame, target : p
         ax_main.set_ylim(0, None)
         ax_main.tick_params(which='both', direction='in', top=True, right=True)
         ax_main.minorticks_on()
-        ax_main.ticklabel_format(style='sci', axis='y', scilimits=(0,0))
-        ax_main.legend(frameon=False, fontsize = 8)
+        
+        fmt = ScalarFormatter(useMathText=True)
+        fmt.set_scientific(True)
+        fmt.set_powerlimits((0, 0))
+        ax_main.yaxis.set_major_formatter(fmt)
         plt.setp(ax_main.get_xticklabels(), visible=False)
 
 
@@ -243,7 +265,7 @@ def draw_source_target_distributions_and_ratio(source : pd.DataFrame, target : p
                 error_ratio = ratio * np.sqrt((e1 / h1)**2 + (e3 / h3)**2)
                 # avoid divide by zeros
                 valid = (h1 > 0) & (h3 > 0) & np.isfinite(ratio) & np.isfinite(error_ratio) & (error_ratio >= 0)
-            ax_ratio.errorbar(bin_centers[valid], ratio[valid], yerr=error_ratio[valid],
+            ax_ratio.errorbar(bin_centers[valid], ratio[valid], yerr=error_ratio[valid], label='ratio $v2 / v3$',
                               fmt='.', color='orange', markersize=3,capsize=2,alpha=alpha)
             with np.errstate(divide='ignore', invalid='ignore'):
                 ratio = np.true_divide(h2, h3)
@@ -251,7 +273,8 @@ def draw_source_target_distributions_and_ratio(source : pd.DataFrame, target : p
                 # Mask valid entries only
                 valid = (h2 > 0) & (h3 > 0) & np.isfinite(ratio) & np.isfinite(error_ratio) & (error_ratio >= 0)
 
-            ax_ratio.errorbar(bin_centers[valid], ratio[valid], yerr=error_ratio[valid], fmt='.', color='purple', markersize=3,capsize=2,alpha=alpha)
+            ax_ratio.errorbar(bin_centers[valid], ratio[valid], yerr=error_ratio[valid], label='ratio $v2\' / v3$',
+                              fmt='.', color='purple', markersize=3,capsize=2,alpha=alpha)
 
             ax_ratio.axhline(1, color='gray', linestyle='-',alpha=alpha)
             ax_ratio.set_ylabel('ratio', fontsize=8)
@@ -260,11 +283,32 @@ def draw_source_target_distributions_and_ratio(source : pd.DataFrame, target : p
             ax_ratio.set_ylim(0,2)
             ax_ratio.yaxis.tick_right()
             ax_ratio.yaxis.set_label_position("right")
+            ax_ratio.tick_params(which='both', direction='in')
+
             if xlabels is not None:
                 ax_ratio.set_xlabel(xlabels[idx])
             else:
                 ax_ratio.set_xlabel(variable)
 
-    fig.subplots_adjust(bottom=0.1)
+        if idx == 0:
+            h, l = ax_main.get_legend_handles_labels()
+            handles.extend(h)
+            labels.extend(l)
+
+            h, l = ax_ratio.get_legend_handles_labels()
+            handles.extend(h)
+            labels.extend(l)
+        
+        if KS_test:
+            ks_score1 = ks_2samp_weighted(source[variable], target[variable], weights1=source_weights, weights2=target_weights)
+            ks_score2 = ks_2samp_weighted(source[variable], target[variable], weights1=new_source_weights, weights2=target_weights)
+            KS_text = '$D_{\\text{KS}}$'+f'\nbefore: {ks_score1:.3f}\nafter: {ks_score2:.3f}'
+            KS_line, = ax_main.plot([0], [0],color='white',alpha=0.0, label=KS_text)
+            # explicitly print handle/label on subplot ax_main
+            ax_main.legend([KS_line], [KS_text],fontsize=8, frameon = False)
+
+
+    fig.legend(handles, labels, loc='lower center', ncol=5, frameon=False)
+    fig.subplots_adjust(bottom=bottom_adjust)
     plt.show()
 
