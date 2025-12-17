@@ -131,9 +131,9 @@ def calculate_weighted_diff_histogram_and_stat_errors(var : ArrayLike, weights :
     return diff_counts, errors
 
 def draw_source_target_distributions_and_ratio(source : pd.DataFrame, target : pd.DataFrame, variables : list = [], bottom_adjust : float = 0.1,
-        legends : list = ['', '', ''], KS_test : bool = True, source_weights : ArrayLike = None, new_source_weights : ArrayLike = None,
-        target_weights : ArrayLike = None, scale_source : float = 1.0, scale_target : float = 1.0, xlabels : list = None, ylabels : list = None,
-        quantile_range : tuple = [0.005, 0.995]) -> None:
+        label_subplot_abc : bool = True, legends : list = ['', '', ''], KS_test : bool = True, source_weights : ArrayLike = None,
+        new_source_weights : ArrayLike = None, target_weights : ArrayLike = None, scale_source : float = 1.0, scale_target : float = 1.0,
+        xlabels : list = None, ylabels : list = None, quantile_range : tuple = [0.005, 0.995]) -> None:
     """
     Draw distributions of variables of source, source reweighted, and
     target sample in grids of subplots. 
@@ -150,6 +150,9 @@ def draw_source_target_distributions_and_ratio(source : pd.DataFrame, target : p
     bottom_adjust : float
         Value passed to plt.subplot_adjust() to adjust figure bottowm.
         Default: 0.1
+    label_subplot_abc : bool
+        If True, label subplots with a., b., c., ... on top right.
+        Default: True
     legends : list, optional
         List of string of legends corresponding to source sample,
         source sample reweighted, and target sample.
@@ -206,7 +209,8 @@ def draw_source_target_distributions_and_ratio(source : pd.DataFrame, target : p
             ax_main = fig.add_subplot(inner_grid[0])
             ax_ratio = None
 
-        ax_main.text(1.00, 1.02, f'{chr(ord("a")+idx)}.', transform=ax_main.transAxes,ha='right', va='bottom')
+        if label_subplot_abc:
+            ax_main.text(1.00, 1.02, f'{chr(ord("a")+idx)}.', transform=ax_main.transAxes,ha='right', va='bottom')
 
         if variable == 'weight':
             # plot source sample new weights
