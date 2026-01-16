@@ -45,6 +45,26 @@ class Reweighter(reweight.GBReweighter):
             new_weights = (np.sum(target_weight)/(np.sum(new_weights)))*new_weights
         return new_weights
 
+    def predict_weight_single_event(self, features : ArrayLike) -> float:
+        """
+        Predict weights for a single event given its features.
+
+        Parameters
+        ----------
+        features : ArrayLike
+            The source sample features of neutrino MC variables
+            (values of reweight variables).
+
+        Returns
+        ----------
+        float
+        """
+        X = np.asarray(features, dtype=np.float64).reshape(1, -1)
+        w = self.predict_weights(X)
+        return w[0]
+
+
+
     def save_to_pickle(self, filepath : str):
         """
         Save Reweighter object via pickle.
