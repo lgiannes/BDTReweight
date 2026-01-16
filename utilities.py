@@ -235,3 +235,61 @@ def cosine_theta_vectors(v1s : np.ndarray, v2s : np.ndarray) -> ArrayLike:
         float array of cos(theta).
     """
     return np.sum(normalize_vectors(v1s) * normalize_vectors(v2s), axis = 1)
+
+def efficiency(cosT : ArrayLike, Tp : ArrayLike):
+    """
+    Return toy model efficiency values for given proton cosine(theta), cosT, and
+    kinetic energy, Tp, see arxiv.org/abs/2510.07463.
+
+    Parameters
+    ----------
+    cosT : ArrayLike
+        cosine of proton angle w.r.t. neutrino direction.
+    Tp : ArrayLike
+        Kinetic energy of proton in GeV.
+
+    Returns
+    ----------
+    np.array
+    """
+    return np.minimum(np.maximum((Tp * cosT - 0.060) / 0.060, 0), 1.0)
+
+def MNEff_evaluate(df = None, xybins = (np.linspace(0,0.6,20),np.linspace(0,2,20)), reweight=False, Xsec_columns=('dpt','pT_muon')):
+
+    if 'pT_muon' not in df.columns:
+        df['pT_muon'] = - df['leading_muon_py']
+    xcol, ycol = Xsec_columns
+    N, dpt_edges, pT_edges = np.histogram2d(df[xcol],df[ycol],bins=xybins,weights=df['weight'])
+    N = np.zeros(N.shape)
+    Nerr = np.zeros(N.shape)
+    M = np.zeros(N.shape)
+    Merr = np.zeros(N.shape)
+    K = np.zeros(N.shape)
+    R = np.zeros(N.shape)
+    Rerr = np.zeros(N.shape)
+    for i in range(len(dpt_edges)-1):
+        for j in range(len(pT_edges)-1):
+            df_bin = df.loc[(df[xcol]>=dpt_edges[i])&(df[xcol]<dpt_edges[i+1])
+                &(df[ycol]>=pT_edges[j])&(df[ycol]<pT_edges[j+1])].copy()
+            if reweight == False:
+                df_bin = df_bin.copy()
+                df_bin['weight'] = 1.0
+                
+            N[i,j] = df_bin['weight'].sum()
+
+            Nerr[i,j] = np.sqrt((df_bin['weight']**2).sum())
+            M[i,j] = (df_bin['eff']*df_bin['weight']).sum()
+            Merr[i,j] = np.sqrt((( df_bin['eff'] * df_bin['weight'] )**2).sum())
+
+            K[i,j] = len(df_bin)
+
+            R[i,j] = M[i,j]/N[i,j]
+            cov = np.sum(df_bin['eff']*df_bin['weight']**2)
+
+            Rerr[i,j] = R[i,j]*np.sqrt(
+                (Nerr[i,j]/N[i,j])**2
+                +(Merr[i,j]/M[i,j])**2
+                -2*cov/(N[i,j]*M[i,j])
+            )
+
+    return M, N, R, dpt_edges, pT_edges, Nerr, Merr, Rerr
