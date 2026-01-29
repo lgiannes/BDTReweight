@@ -227,12 +227,20 @@ class NuisanceFlatTree:
         arr = self.get_tree_array_copy()
         arr = arr[indices_1p0n]
 
-        v1s = np.array(np.stack([arr['px_vert'][:,5], arr['py_vert'][:,5], arr['pz_vert'][:,5]])).T
-        v2s = np.array(np.stack([arr['px'][:,1], arr['py'][:,1], arr['pz'][:,1]])).T
-        costheta = cosine_theta_vectors(v1s, v2s)
+        # # Elastic FSI bug changes FSI proton angle unphysically.
+        # v1s = np.array(np.stack([arr['px_vert'][:,5], arr['py_vert'][:,5], arr['pz_vert'][:,5]])).T
+        # v2s = np.array(np.stack([arr['px'][:,1], arr['py'][:,1], arr['pz'][:,1]])).T
+        # costheta = cosine_theta_vectors(v1s, v2s)
+        # indices_FSIbug = indices_1p0n[costheta < 0.9999996] # Give a machine tolerance
 
-        # Elastic FSI bug changes FSI proton angle unphysically.
-        indices_FSIbug = indices_1p0n[costheta < 0.9999996] # Give a machine tolerance
+        # Use MINERvA MAT's weight_fsi calcFates() check instead:
+        E1s = np.array(arr['E_vert'][:,5])
+        E2s = np.array(arr['E'][:,1])
+        tolerance = 0.0000001 # within machine precision
+        offset = 0.025 # GENIE binding energy 25.0 MeV
+        E_diff = np.abs(E1s - E2s - offset)
+        indices_FSIbug = indices_1p0n[E_diff >= tolerance]
+
         indices_tree = np.arange(0, len(self._flattree_vars))
         indices_good = np.delete(indices_tree, indices_FSIbug)
         return indices_good
