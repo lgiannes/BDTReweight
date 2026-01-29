@@ -224,7 +224,10 @@ def draw_source_target_distributions_and_ratio(source : pd.DataFrame, target : p
             continue
 
         # Plot the selected quantile rage of data to depict majority of data
-        x_min = min(np.quantile(source[variable], quantile_range[0]),np.quantile(target[variable], quantile_range[0]))
+        if variable in ['total_proton_KE', 'dpt', 'dphit', 'dalphat', 'leading_proton_KE', 'leading_neutron_KE']:
+            x_min = 0.0
+        else:
+            x_min = min(np.quantile(source[variable], quantile_range[0]),np.quantile(target[variable], quantile_range[0]))
         x_max = min(np.quantile(source[variable], quantile_range[1]),np.quantile(target[variable], quantile_range[1]))
 
         # plot histogram with evenly bins of size 30
