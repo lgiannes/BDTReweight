@@ -1,7 +1,8 @@
 import os
 import sys
 # Change this path to your working directory where BDTReweight is installed:
-sys.path.append('/Users/lorenzo/Minerva/reweighting_workdir')
+# sys.path.append('/Users/lorenzo/Minerva/reweighting_workdir')
+sys.path.append('/eos/experiment/neutplatform/t2knd280/lgiannes/Minerva_tuples/')
 
 from BDTReweight.analysis import transform_momentum_to_reaction_frame, create_dataframe_from_nuisance, draw_source_target_distributions_and_ratio
 from BDTReweight.nuisance_flat_tree import NuisanceFlatTree
@@ -17,9 +18,11 @@ import joblib
 import ROOT
 import pickle
 
-target_path = '/Users/lorenzo/cernbox/MINERVA_MC/target/neut_MINERvAflux_EDRMF_nu_all_NUISFLAT_CCQELike.root'
+# target_path = '/Users/lorenzo/cernbox/MINERVA_MC/target/neut_MINERvAflux_EDRMF_nu_all_NUISFLAT_CCQELike.root'
+target_path = '/eos/user/l/lgiannes/MINERVA_MC/target/neut_MINERvAflux_EDRMF_nu_all_NUISFLAT_CCQELike.root'
 # source_path = '/Users/lorenzo/cernbox/MINERVA_MC/source/ReweightSourceCCQELike_minervame1L.root'
-source_path = '/Users/lorenzo/cernbox/MINERVA_MC/source/minervame1L_for_rwg.root'
+# source_path = '/Users/lorenzo/cernbox/MINERVA_MC/source/minervame1L_for_rwg.root'
+source_path = '/eos/user/l/lgiannes/MINERVA_MC/source/minervame1L_for_rwg.root'
 
 # source_path = '/Users/lorenzo/cernbox/MINERVA_MC/source/ReweightSourceCCQELike_minervame1M.root'
 
