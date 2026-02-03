@@ -3,6 +3,7 @@ import numpy as np
 from numpy.typing import ArrayLike
 import awkward as ak
 from .utilities import particle_mass_lookup, particle_pdg_lookup, cosine_theta_vectors
+from typing import Union
 
 class NuisanceFlatTree:
     """
@@ -18,7 +19,7 @@ class NuisanceFlatTree:
         Total cross-section in unit of cm^2.
     """
 
-    def __init__(self, rf_path : str | list, **kwargs):
+    def __init__(self, rf_path: Union[str, list], **kwargs):
         """
         Initialize the NuisanceFlatTree object with given arguments.
 
@@ -139,6 +140,40 @@ class NuisanceFlatTree:
         """
         return np.array(self._flattree_vars['flagCCQELike'])
 
+    def get_mode(self) -> ArrayLike:
+        """
+        Get the interaction mode (from NUISANCE flat tree
+        directly).
+
+        Parameters
+        ----------
+        None
+
+        Returns
+        ----------
+        ArrayLike
+            Interaction mode array.
+        """
+        return np.array(self._flattree_vars['Mode'])
+
+    def get_weight(self) -> ArrayLike:
+        """
+        Get the weight branch (from NUISANCE flat tree
+        directly).
+
+        Parameters
+        ----------
+        None
+
+        Returns
+        ----------
+        ArrayLike
+            array of event weights.
+        """
+        return np.array(self._flattree_vars['Weight'])
+
+
+
     def get_mask_target_nucleus_A_Z(self, A : int, Z : int) -> ArrayLike:
         """
         Get the boolean mask for events where target nuclei has
@@ -227,20 +262,12 @@ class NuisanceFlatTree:
         arr = self.get_tree_array_copy()
         arr = arr[indices_1p0n]
 
-        # # Elastic FSI bug changes FSI proton angle unphysically.
-        # v1s = np.array(np.stack([arr['px_vert'][:,5], arr['py_vert'][:,5], arr['pz_vert'][:,5]])).T
-        # v2s = np.array(np.stack([arr['px'][:,1], arr['py'][:,1], arr['pz'][:,1]])).T
-        # costheta = cosine_theta_vectors(v1s, v2s)
-        # indices_FSIbug = indices_1p0n[costheta < 0.9999996] # Give a machine tolerance
+        v1s = np.array(np.stack([arr['px_vert'][:,5], arr['py_vert'][:,5], arr['pz_vert'][:,5]])).T
+        v2s = np.array(np.stack([arr['px'][:,1], arr['py'][:,1], arr['pz'][:,1]])).T
+        costheta = cosine_theta_vectors(v1s, v2s)
 
-        # Use MINERvA MAT's weight_fsi calcFates() check instead:
-        E1s = np.array(arr['E_vert'][:,5])
-        E2s = np.array(arr['E'][:,1])
-        tolerance = 0.0000001 # within machine precision
-        offset = 0.025 # GENIE binding energy 25.0 MeV
-        E_diff = np.abs(E1s - E2s - offset)
-        indices_FSIbug = indices_1p0n[E_diff >= tolerance]
-
+        # Elastic FSI bug changes FSI proton angle unphysically.
+        indices_FSIbug = indices_1p0n[costheta < 0.9999996] # Give a machine tolerance
         indices_tree = np.arange(0, len(self._flattree_vars))
         indices_good = np.delete(indices_tree, indices_FSIbug)
         return indices_good
