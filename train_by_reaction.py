@@ -113,12 +113,12 @@ particle_names = ['total_proton']
 
 source_total = len(source_train[category])
 print("Number of events:")
-print(f"SOURCE: True QE events: {np.sum(source_train[category]['reactionCode']==1)} ({np.sum(source_train[category]['reactionCode']==1)/source_total*100:.2f} %)")
-print(f"SOURCE: True 2p2h events: {np.sum(source_train[category]['reactionCode']==2)} ({np.sum(source_train[category]['reactionCode']==2)/source_total*100:.2f} %)")
+print(f"SOURCE: True QE events:      {np.sum(source_train[category]['reactionCode']==1)} ({np.sum(source_train[category]['reactionCode']==1)/source_total*100:.2f} %)")
+print(f"SOURCE: True 2p2h events:    {np.sum(source_train[category]['reactionCode']==2)} ({np.sum(source_train[category]['reactionCode']==2)/source_total*100:.2f} %)")
 print(f"SOURCE: True RES+DIS events: {np.sum(source_train[category]['reactionCode']>2)} ({np.sum(source_train[category]['reactionCode']>2)/source_total*100:.2f} %)")
 target_total = len(tree_target_train._flattree_vars)
-print(f"TARGET: True QE events: {np.sum(tree_target_train.get_mode()==1)} ({np.sum(tree_target_train.get_mode()==1)/target_total*100:.2f} %)")
-print(f"TARGET: True 2p2h events: {np.sum(tree_target_train.get_mode()==2)} ({np.sum(tree_target_train.get_mode()==2)/target_total*100:.2f} %)")
+print(f"TARGET: True QE events:      {np.sum(tree_target_train.get_mode()==1)} ({np.sum(tree_target_train.get_mode()==1)/target_total*100:.2f} %)")
+print(f"TARGET: True 2p2h events:    {np.sum(tree_target_train.get_mode()==2)} ({np.sum(tree_target_train.get_mode()==2)/target_total*100:.2f} %)")
 print(f"TARGET: True RES+DIS events: {np.sum(tree_target_train.get_mode()>2)} ({np.sum(tree_target_train.get_mode()>2)/target_total*100:.2f} %)")
 
 scale_target_train *= float(source_total / target_total)
@@ -132,11 +132,11 @@ target_total_event_rate = scale_target_train * np.sum(tree_target_train.get_weig
 target_qe_event_rate = scale_target_train * np.sum(tree_target_train.get_weight()[tree_target_train.get_mode()==1])
 target_2p2h_event_rate = scale_target_train * np.sum(tree_target_train.get_weight()[tree_target_train.get_mode()==2])
 target_resdis_event_rate = scale_target_train * np.sum(tree_target_train.get_weight()[tree_target_train.get_mode()>2])
-print(f"SOURCE QE event rate: {source_qe_event_rate:.0f} ({source_qe_event_rate/source_total_event_rate*100:.2f} % )")
-print(f"SOURCE 2p2h event rate: {source_2p2h_event_rate:.0f} ({source_2p2h_event_rate/source_total_event_rate*100:.2f} % )")
+print(f"SOURCE QE event rate:      {source_qe_event_rate:.0f} ({source_qe_event_rate/source_total_event_rate*100:.2f} % )")
+print(f"SOURCE 2p2h event rate:    {source_2p2h_event_rate:.0f} ({source_2p2h_event_rate/source_total_event_rate*100:.2f} % )")
 print(f"SOURCE RES+DIS event rate: {source_resdis_event_rate:.0f} ({source_resdis_event_rate/source_total_event_rate*100:.2f} % )")
-print(f"TARGET QE event rate: {target_qe_event_rate:.0f} ({target_qe_event_rate/target_total_event_rate*100:.2f} % )")
-print(f"TARGET 2p2h event rate: {target_2p2h_event_rate:.0f} ({target_2p2h_event_rate/target_total_event_rate*100:.2f} % )")
+print(f"TARGET QE event rate:      {target_qe_event_rate:.0f} ({target_qe_event_rate/target_total_event_rate*100:.2f} % )")
+print(f"TARGET 2p2h event rate:    {target_2p2h_event_rate:.0f} ({target_2p2h_event_rate/target_total_event_rate*100:.2f} % )")
 print(f"TARGET RES+DIS event rate: {target_resdis_event_rate:.0f} ({target_resdis_event_rate/target_total_event_rate*100:.2f} % )")
 
 
@@ -263,12 +263,12 @@ if (build_tree_of_weights):
     with uproot.recreate(output_root_file) as f_out:
             f_out.mktree("reweight_tree",dict_to_tree)
 
-# check that the output file has been created and it's sorted out
-f_in = uproot.open(output_root_file)
-tree_in = f_in['reweight_tree']
-tree_in.show()
-# equivalent of Scan in ROOT
-print("")
-print(tree_in.arrays(library='pd'))
+    # check that the output file has been created and it's sorted out
+    f_in = uproot.open(output_root_file)
+    tree_in = f_in['reweight_tree']
+    tree_in.show()
+    # equivalent of Scan in ROOT
+    print("")
+    print(tree_in.arrays(library='pd'))
 
-print(f"Produced weights saved to {output_root_file}")
+    print(f"Produced weights saved to {output_root_file}")
