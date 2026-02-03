@@ -18,6 +18,14 @@ import joblib
 import ROOT
 import pickle
 
+
+build_tree_of_weights = False
+
+# get build_tree_of_weights from command line arguments
+if len(sys.argv) > 1:
+    if sys.argv[1].lower() == 'true':
+        build_tree_of_weights = True
+
 # target_path = '/Users/lorenzo/cernbox/MINERVA_MC/target/neut_MINERvAflux_EDRMF_nu_all_NUISFLAT_CCQELike.root'
 target_path = '/eos/user/l/lgiannes/MINERVA_MC/target/neut_MINERvAflux_EDRMF_nu_all_NUISFLAT_CCQELike.root'
 # source_path = '/Users/lorenzo/cernbox/MINERVA_MC/source/ReweightSourceCCQELike_minervame1L.root'
@@ -250,9 +258,10 @@ source_basename = pathlib.Path(source_path).stem
 match = re.search(r'minervame..', source_basename)
 playlist_name = match.group(0) if match else 'unknownPlaylist'
 
-output_root_file = output_folder / f'ReweightWeights_{playlist_name}_{target_model_name}_{category}.root'
-with uproot.recreate(output_root_file) as f_out:
-        f_out.mktree("reweight_tree",dict_to_tree)
+if (build_tree_of_weights):
+    output_root_file = output_folder / f'ReweightWeights_{playlist_name}_{target_model_name}_{category}.root'
+    with uproot.recreate(output_root_file) as f_out:
+            f_out.mktree("reweight_tree",dict_to_tree)
 
 # check that the output file has been created and it's sorted out
 f_in = uproot.open(output_root_file)
