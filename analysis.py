@@ -319,7 +319,8 @@ def draw_source_target_distributions_and_ratio(source : pd.DataFrame, target : p
 
     fig.legend(handles, labels, loc='lower center', ncol=5, frameon=False)
     fig.subplots_adjust(bottom=bottom_adjust)
-    plt.show()
+    # plt.show()
+    return fig
 
 def draw_2Dxsec_and_efficiency(df_genie2=[],df_genie3=[],xybins=(np.linspace(0,0.6,20),np.linspace(0,2,20)),fScale_genie2=0,fScale_genie3=0,
                Xsec_columns=('dpt','pT_muon'), xylabels=('$\delta p_T \ (\\text{GeV}/c)$','$p^\mu_T \ (\\text{GeV}/c)$')):
