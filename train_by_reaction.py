@@ -17,20 +17,32 @@ import re
 import joblib
 import ROOT
 import pickle
+import argparse
 
+# arguments parser
+p = argparse.ArgumentParser(description='Train BDT reweighter by reaction channel.')
+p.add_argument('--source_path', '-s', type=str, help='Path to the source model ROOT file.')
+p.add_argument('--target_path', '-t', type=str, help='Path to the target model ROOT file.')
+p.add_argument('--module_path', '-m', type=str, help='Path to the BDTReweight module.')
+p.add_argument('--build_tree_of_weights',action='store_true', help='Activate building a ROOT TTree with the reweighting weights.')
 
 build_tree_of_weights = False
 
 # get build_tree_of_weights from command line arguments
-if len(sys.argv) > 1:
-    if sys.argv[1].lower() == 'true':
-        build_tree_of_weights = True
+args = p.parse_args()
+if args.build_tree_of_weights:
+    build_tree_of_weights = True
+
+target_path = args.target_path
+source_path = args.source_path
+if args.module_path:
+    sys.path.append(args.module_path)
 
 # target_path = '/Users/lorenzo/cernbox/MINERVA_MC/target/neut_MINERvAflux_EDRMF_nu_all_NUISFLAT_CCQELike.root'
-target_path = '/eos/user/l/lgiannes/MINERVA_MC/target/neut_MINERvAflux_EDRMF_nu_all_NUISFLAT_CCQELike.root'
+# target_path = '/eos/user/l/lgiannes/MINERVA_MC/target/neut_MINERvAflux_EDRMF_nu_all_NUISFLAT_CCQELike.root'
 # source_path = '/Users/lorenzo/cernbox/MINERVA_MC/source/ReweightSourceCCQELike_minervame1L.root'
 # source_path = '/Users/lorenzo/cernbox/MINERVA_MC/source/minervame1L_for_rwg.root'
-source_path = '/eos/user/l/lgiannes/MINERVA_MC/source/minervame1L_for_rwg.root'
+# source_path = '/eos/user/l/lgiannes/MINERVA_MC/source/minervame1L_for_rwg.root'
 
 # source_path = '/Users/lorenzo/cernbox/MINERVA_MC/source/ReweightSourceCCQELike_minervame1M.root'
 
