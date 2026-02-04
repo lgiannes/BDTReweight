@@ -227,6 +227,24 @@ for process in ['2p2h','QE','Oth']:
     print(f"Saved reweighting result figure to ReweightingResult_{process}_{category}.png")
     plt.close()
 
+    fig = draw_source_target_distributions_and_ratio(source_train_p, target_train_p,
+         variables = drawing_variables,
+         source_weights = source_train_p['init_wgt'],
+         target_weights = target_train_p['weight'],
+         new_source_weights = all_weights,
+         legends = ['Source', 'Target', 'Source (Reweighted)'],
+         # xlabels = [particle_variable_to_latex(var) for var in drawing_variables],
+         # ylabels = [diff_xsec_latex_wrt_variable(var) for var in drawing_variables],
+         # scale_target = scale_target_train,
+         shape_only = True
+         )
+
+    # add gloabal title to the figure
+    fig.suptitle(f'Shape only. Process: {process} in category: {category}', fontsize=16)
+    fig.savefig(f'ReweightingResult_{process}_{category}_Shape.png')
+    print(f"Saved reweighting result figure to ReweightingResult_{process}_{category}_Shape.png")
+    plt.close()
+
 
     # Generate a TTree with branches: eventID, entryNumber, init_wgt, weight (weight after training)
 

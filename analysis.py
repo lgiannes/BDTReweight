@@ -133,7 +133,7 @@ def calculate_weighted_diff_histogram_and_stat_errors(var : ArrayLike, weights :
 def draw_source_target_distributions_and_ratio(source : pd.DataFrame, target : pd.DataFrame, variables : list = [], bottom_adjust : float = 0.1,
         label_subplot_abc : bool = True, legends : list = ['', '', ''], KS_test : bool = True, source_weights : ArrayLike = None,
         new_source_weights : ArrayLike = None, target_weights : ArrayLike = None, scale_source : float = 1.0, scale_target : float = 1.0,
-        xlabels : list = None, ylabels : list = None, quantile_range : tuple = [0.005, 0.995]) -> None:
+        xlabels : list = None, ylabels : list = None, quantile_range : tuple = [0.005, 0.995], shape_only = False) -> None:
     """
     Draw distributions of variables of source, source reweighted, and
     target sample in grids of subplots. 
@@ -180,6 +180,8 @@ def draw_source_target_distributions_and_ratio(source : pd.DataFrame, target : p
         to be plotted. Use this to constrain plot range for better
         visualization.
         Default: [0.005, 0.995]
+    shape_only : bool, optional
+        If True, normalize histograms to unit area to compare shapes only.
 
     Returns
     ----------
@@ -238,6 +240,13 @@ def draw_source_target_distributions_and_ratio(source : pd.DataFrame, target : p
         # a helper function to plot, also returns differential counts and statistical errors
         def hist_plot(data, weights, scale, color, label='', offset=0, ax=ax_main):
             diff_counts, errors = calculate_weighted_diff_histogram_and_stat_errors(data, weights=weights, scale_factor=scale, bins=bins)
+
+            if shape_only:
+                area = np.sum(diff_counts * bin_widths)
+                if area > 0:
+                    diff_counts = diff_counts / area
+                    errors = errors / area
+
             ax.step(bins, np.append(diff_counts, diff_counts[-1]), where='post', label=label, color=color, alpha=alpha)
             ax.errorbar(bin_centers + offset * bin_widths, diff_counts, yerr=errors,
                         fmt=".", color=color, capsize=1.5, markersize=2, alpha=alpha)
@@ -314,7 +323,7 @@ def draw_source_target_distributions_and_ratio(source : pd.DataFrame, target : p
             KS_text = '$D_{\\text{KS}}$'+f'\nbefore: {ks_score1:.3f}\nafter: {ks_score2:.3f}'
             KS_line, = ax_main.plot([0], [0],color='white',alpha=0.0, label=KS_text)
             # explicitly print handle/label on subplot ax_main
-            ax_main.legend([KS_line], [KS_text],fontsize=8, frameon = False)
+            ax_main.text(0.98, 0.95, KS_text, transform=ax_main.transAxes,ha='right', va='top', fontsize=8, bbox=dict(facecolor='white', alpha=0.6, edgecolor='none', pad=1.0))
 
 
 
