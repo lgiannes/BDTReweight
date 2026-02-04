@@ -215,6 +215,7 @@ for process in ['2p2h','QE','Oth']:
         source_weights = source_train_p['init_wgt'],
         target_weights = target_train_p['weight'],
         new_source_weights = all_weights,
+        legends = ['Source', 'Target', 'Source (Reweighted)'],
         # xlabels = [particle_variable_to_latex(var) for var in drawing_variables],
         # ylabels = [diff_xsec_latex_wrt_variable(var) for var in drawing_variables],
         # scale_target = scale_target_train
