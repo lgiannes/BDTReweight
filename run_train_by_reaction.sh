@@ -51,4 +51,4 @@ python3 ${MINERVA}/BDTReweight/train_by_reaction.py \
                     --target_path $target \
                     --module_path ${MINERVA} \
                     --plots_dir ${target_folder}/plots_${target_model_id} \
-                    --model_name ${target_model_id} # --max_events 1000 
+                    --model_name ${target_model_id} # --max_events 1000
