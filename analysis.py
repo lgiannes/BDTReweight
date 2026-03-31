@@ -296,6 +296,9 @@ def draw_source_target_distributions_and_ratio(source : pd.DataFrame, target : p
             ax_log.set_ylim(0, None)
             ax_log.set_xlabel('log(weights)')
             ax_log.set_ylabel('counts')
+            # print average of log weights on top right of ax_log
+            avg_log_wgt = np.mean(log_weights)
+            ax_log.text(0.98, 0.95, f'avg log(wgt)={avg_log_wgt:.2f}', transform=ax_log.transAxes, ha='right', va='top', fontsize=8, bbox=dict(facecolor='white', alpha=0.6, edgecolor='none', pad=1.0))
             
             continue
 

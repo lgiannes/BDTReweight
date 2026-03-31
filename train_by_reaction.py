@@ -75,7 +75,7 @@ CATEGORY_CONFIGS = {
         ],
     },
     '1p0n': {
-        'particle_counts': {'muon': '==1', 'proton': '==0', 'neutron': '==0'},
+        'particle_counts': {'muon': '==1', 'proton': '==1', 'neutron': '==0'},
         'variable_exprs': [
             'Enu_true', 'Q2', 'q0', 'q3', 'W',
             'leading_muon_px', 'leading_muon_py', 'leading_muon_pz', 'leading_muon_KE',
@@ -86,7 +86,7 @@ CATEGORY_CONFIGS = {
         'drawing_variables': ['total_proton_KE', 'leading_muon_py', 'leading_muon_pz', 'weight'],
     },
     '1pNn': {
-        'particle_counts': {'muon': '==1', 'proton': '==0', 'neutron': '==0'},
+        'particle_counts': {'muon': '==1', 'proton': '==1', 'neutron': '>=1'},
         'variable_exprs': [
             'Enu_true', 'Q2', 'q0', 'q3', 'W',
             'leading_muon_px', 'leading_muon_py', 'leading_muon_pz', 'leading_muon_KE',
@@ -97,7 +97,7 @@ CATEGORY_CONFIGS = {
         'drawing_variables': ['total_proton_KE', 'leading_muon_py', 'leading_muon_pz', 'weight'],
     },
     '2p0n': {
-        'particle_counts': {'muon': '==1', 'proton': '==0', 'neutron': '==0'},
+        'particle_counts': {'muon': '==1', 'proton': '==2', 'neutron': '==0'},
         'variable_exprs': [
             'Enu_true', 'Q2', 'q0', 'q3', 'W',
             'leading_muon_px', 'leading_muon_py', 'leading_muon_pz', 'leading_muon_KE',
@@ -108,7 +108,7 @@ CATEGORY_CONFIGS = {
         'drawing_variables': ['total_proton_KE', 'leading_muon_py', 'leading_muon_pz', 'weight'],
     },
     '2pNn': {
-        'particle_counts': {'muon': '==1', 'proton': '==0', 'neutron': '==0'},
+        'particle_counts': {'muon': '==1', 'proton': '==2', 'neutron': '>=1'},
         'variable_exprs': [
             'Enu_true', 'Q2', 'q0', 'q3', 'W',
             'leading_muon_px', 'leading_muon_py', 'leading_muon_pz', 'leading_muon_KE',
@@ -119,7 +119,7 @@ CATEGORY_CONFIGS = {
         'drawing_variables': ['total_proton_KE', 'leading_muon_py', 'leading_muon_pz', 'weight'],
     },
     'others': {
-        'particle_counts': {'muon': '==1', 'proton': '==0', 'neutron': '==0'},
+        'particle_counts': {'muon': '==1', 'proton': '>=2', 'neutron': '>=1'},
         'variable_exprs': [
             'Enu_true', 'Q2', 'q0', 'q3', 'W',
             'leading_muon_px', 'leading_muon_py', 'leading_muon_pz', 'leading_muon_KE',
@@ -239,16 +239,18 @@ def save_mean_vs_slice_plot(
     )
 
     diff_target_source = target_means - source_means
-    diff_reweighted_source = reweighted_means - source_means
-    ax_diff.plot(x_centers, diff_target_source, 'o-', color='tab:orange', label='Target - Source')
+    diff_reweighted_source = reweighted_means - target_means
+    # ax_diff.plot(x_centers, diff_target_source, 'o-', color='tab:orange', label='Target - Source')
     ax_diff.plot(
         x_centers,
         diff_reweighted_source,
         'o-',
         color='tab:purple',
-        label='Reweighted - Source',
+        label='Reweighted - Target',
     )
     ax_diff.axhline(0.0, color='black', linestyle='--', linewidth=1)
+    ax_diff.axhline(0.015, color='black', linestyle='--', linewidth=1, alpha=0.5)
+    ax_diff.axhline(-0.015, color='black', linestyle='--', linewidth=1, alpha=0.5)
     ax_diff.set_xlabel(f'{x_label} [{unit}]')
     ax_diff.set_ylabel(r'$\Delta$ mean')
     ax_diff.grid(True, alpha=0.3)
@@ -425,7 +427,7 @@ if args.max_events is not None:
 target_train = {}
 target_test = {}
 # Specify detecting thresholds and topology particle counts:
-KE_thresholds={'proton':50, 'neutron':10} # (MeV) use very large thresholds if you want to effectively put everything in 0p0n samples
+KE_thresholds={'proton':50000, 'neutron':50000} # (MeV) use very large thresholds if you want to effectively put everything in 0p0n samples
 # scale_source_train = len(tree_target_train._flattree_vars)/len(tree_source_train)
 scale_source_train = 1 # 2.489225788674492e-44
 # The following factor is used to set the total xsec.
@@ -640,7 +642,7 @@ for process in ['Oth','2p2h','QE']:
     print("Fitting reweighter...")
     reweighter = Reweighter(n_estimators=100, learning_rate=0.4, max_depth=4, min_samples_leaf=30, gb_args={'subsample': 1.0})
     reweighter.fit(original=source_train_p[reweight_variables], target=target_train_p[reweight_variables],
-                   # target_weight=target_train_p['weight'],
+                   target_weight=target_train_p['weight'],
                    # original_weight=None
                    )
 
