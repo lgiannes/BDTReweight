@@ -665,12 +665,12 @@ for process in ['Oth','2p2h','QE']:
     test_weights = reweighter.predict_matched_total_weights(
         source_test_p[reweight_variables],
         # original_weight=None,
-        # target_weight=target_test_p['weight']
+        target_weight=target_test_p['weight']
     )
     all_weights = reweighter.predict_matched_total_weights(
         source_train_p[reweight_variables],
         # original_weight=None,
-        # target_weight=target_train_p['weight']
+        target_weight=target_train_p['weight']
     )
 
     target_n_events = np.sum(target_test_p['weight'])
