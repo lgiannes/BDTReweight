@@ -558,6 +558,7 @@ print(f"TARGET QE event rate:      {target_qe_event_rate:.0f} ({target_qe_event_
 print(f"TARGET 2p2h event rate:    {target_2p2h_event_rate:.0f} ({target_2p2h_event_rate/target_total_event_rate*100:.2f} % )")
 print(f"TARGET RES+DIS event rate: {target_resdis_event_rate:.0f} ({target_resdis_event_rate/target_total_event_rate*100:.2f} % )")
 
+print(f"Scale target/source: {scale_target_train:.2e} = {target_ccqelike_xsec:.2e} / {source_ccqelike_xsec:.2e} * {source_total} / {target_total}")
 
 print(f"Training on variables: {', '.join(reweight_variables)}")
 
@@ -640,9 +641,13 @@ for process in ['Oth','2p2h','QE']:
     print("Fitting reweighter...")
     reweighter = Reweighter(n_estimators=100, learning_rate=0.4, max_depth=4, min_samples_leaf=30, gb_args={'subsample': 1.0})
     reweighter.fit(original=source_train_p[reweight_variables], target=target_train_p[reweight_variables],
-                   # target_weight=target_train_p['weight'],
+                   target_weight=target_train_p['weight'],
                    # original_weight=None
                    )
+
+    # Set the cross-section scale factor in the reweighter so it's included in the pickle file
+    reweighter.set_xsec_scale_factor(scale_target_train)
+    print(f"Set cross-section scale factor in reweighter to {scale_target_train:.2e}")
 
     print("Saving model ...", end='')
     gb_model = getattr(reweighter, '_gb', getattr(reweighter, 'gb'))
@@ -660,12 +665,12 @@ for process in ['Oth','2p2h','QE']:
     test_weights = reweighter.predict_matched_total_weights(
         source_test_p[reweight_variables],
         # original_weight=None,
-        target_weight=target_test_p['weight']
+        # target_weight=target_test_p['weight']
     )
     all_weights = reweighter.predict_matched_total_weights(
         source_train_p[reweight_variables],
         # original_weight=None,
-        target_weight=target_train_p['weight']
+        # target_weight=target_train_p['weight']
     )
 
     target_n_events = np.sum(target_test_p['weight'])

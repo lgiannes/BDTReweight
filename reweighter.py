@@ -14,14 +14,16 @@ class Reweighter(reweight.GBReweighter):
     
     def __init__(self, n_estimators=40, learning_rate=0.2, max_depth=3, min_samples_leaf=200, loss_regularization=5, gb_args=None):
         super().__init__(n_estimators, learning_rate, max_depth, min_samples_leaf, loss_regularization, gb_args)
+        self.xsec_scale_factor = 1.0  # Cross-section scale factor (e.g., sigma_target / sigma_source)
 
     def predict_matched_total_weights(self, original : np.ndarray, original_weight : ArrayLike = None, target_weight : ArrayLike = None) -> ArrayLike:
         """
         hep_ml.reweight's GBReweighter.predict_weights() doesn't
         preserve the total weights after reweight. In this modified
         version, the total weights are  either preserved, or matched
-        to target total weights.
-        
+        to target total weights. The target weights normalization already
+        accounts for any cross-section scaling (xsec_scale_factor).
+
         Parameters
         ----------
         original : np.ndarray
@@ -61,7 +63,24 @@ class Reweighter(reweight.GBReweighter):
         """
         X = np.asarray(features, dtype=np.float64).reshape(1, -1)
         w = self.predict_weights(X)
-        return w[0]
+        return w[0] * self.xsec_scale_factor
+
+    def set_xsec_scale_factor(self, scale_factor: float):
+        """
+        Set the cross-section scale factor to be applied to all predicted weights.
+        This allows the pickle file to be self-contained with the total cross-section weight.
+
+        Parameters
+        ----------
+        scale_factor : float
+            The scale factor (typically sigma_target / sigma_source * (source_total / target_total))
+
+        Returns
+        ----------
+        None
+        """
+        self.xsec_scale_factor = scale_factor
+
 
 
 
