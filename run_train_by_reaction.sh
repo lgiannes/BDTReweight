@@ -8,8 +8,7 @@ fi
 
 # check that the setup is correct
 if [ -z "$MINERVAEXE" ]; then
-  echo "Error: MINERVAEXE is not set. Please source the setup script."
-  exit 1
+  source ${MINERVA}/setup_CCQENu.sh
 fi
 
 source="/eos/experiment/neutplatform/t2knd280/lgiannes/Minerva_tuples/SourcesForReweighting/ReweightSourceCCQELike_ABCDEFGLMNOP.root"
@@ -52,4 +51,4 @@ python3 ${MINERVA}/BDTReweight/train_by_reaction.py \
                     --target_path $target \
                     --module_path ${MINERVA} \
                     --plots_dir ${target_folder}/plots_${target_model_id} \
-                    --model_name ${target_model_id} 
+                    --model_name ${target_model_id} # --max_events 1000
