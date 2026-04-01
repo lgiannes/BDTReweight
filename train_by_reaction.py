@@ -18,6 +18,7 @@ import joblib
 import ROOT
 import pickle
 import argparse
+from tqdm import tqdm
 
 
 MUON_MASS_GEV = 0.1056583745
@@ -989,7 +990,7 @@ print("="*80 + "\n")
 # COMPUTE WEIGHTS FOR ENTIRE SOURCE TREE USING predict_weight_single_event
 # ============================================================================
 print("\n" + "="*80)
-print("WEIGHTS FROM predict_weight_single_event FOR ENTIRE SOURCE TREE")
+print(f"WEIGHTS FROM predict_weight_single_event FOR TEST SOURCE TREE (n events: {len(source_test[category])}). ")
 print("="*80)
 
 # Load the trained reweighters for each process
@@ -1050,7 +1051,7 @@ for process in ['Oth','2p2h','QE']:
 
         # Compute weights for each event using predict_weight_single_event
         process_weights = []
-        for i, feature_row in enumerate(features):
+        for i, feature_row in enumerate(tqdm(features, desc=f"Computing weights for {process}", leave=False)):
             weight = reweighter.predict_weight_single_event(feature_row)
             process_weights.append(weight)
 
