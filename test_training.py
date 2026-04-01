@@ -306,16 +306,70 @@ def save_psi_prime_slice_plot(
     target_weights_slice = np.asarray(target_weights, dtype=float)[target_mask]
     new_source_weights_slice = np.asarray(new_source_weights, dtype=float)[source_mask]
 
-    fig = draw_source_target_distributions_and_ratio(
-        source_slice,
-        target_slice,
-        variables=['psi_prime'],
-        source_weights=source_weights_slice,
-        target_weights=target_weights_slice * float(len(source_train_p)) / len(target_train_p),
-        new_source_weights=new_source_weights_slice,
-        legends=['Source', 'Source (Reweighted)', 'Target'],
-        variable_bins={'psi_prime': PSI_PRIME_BIN_EDGES},
-    )
+    # Draw histograms in the same style as the global projection plots
+    var = 'psi_prime'
+    binning = PSI_PRIME_BIN_EDGES
+    bin_centers = 0.5 * (binning[:-1] + binning[1:])
+    bin_widths = np.diff(binning)
+
+    # Compute histograms
+    bin_contents_source, _ = np.histogram(source_slice[var], bins=binning, density=False, weights=source_weights_slice)
+    bin_errors_source = np.sqrt(np.histogram(source_slice[var], bins=binning, weights=source_weights_slice**2)[0])
+    bin_contents_target, _ = np.histogram(target_slice[var], bins=binning, density=False, weights=target_weights_slice)
+    bin_errors_target = np.sqrt(np.histogram(target_slice[var], bins=binning, weights=target_weights_slice**2)[0])
+    bin_contents_reweighted_source, _ = np.histogram(source_slice[var], bins=binning, density=False, weights=new_source_weights_slice)
+    bin_errors_reweighted_source = np.sqrt(np.histogram(source_slice[var], bins=binning, weights=new_source_weights_slice**2)[0])
+
+    # Normalize by bin width
+    bin_contents_source_norm = bin_contents_source / bin_widths
+    bin_contents_source_norm = np.concatenate((bin_contents_source_norm, [0]))
+    bin_errors_source_norm = bin_errors_source / bin_widths
+    bin_errors_source_norm = np.concatenate((bin_errors_source_norm, [0]))
+    bin_contents_target_norm = bin_contents_target / bin_widths
+    bin_contents_target_norm = np.concatenate((bin_contents_target_norm, [0]))
+    bin_errors_target_norm = bin_errors_target / bin_widths
+    bin_errors_target_norm = np.concatenate((bin_errors_target_norm, [0]))
+    bin_contents_reweighted_source_norm = bin_contents_reweighted_source / bin_widths
+    bin_contents_reweighted_source_norm = np.concatenate((bin_contents_reweighted_source_norm, [0]))
+    bin_errors_reweighted_source_norm = bin_errors_reweighted_source / bin_widths
+    bin_errors_reweighted_source_norm = np.concatenate((bin_errors_reweighted_source_norm, [0]))
+
+    bin_centers_extended = np.concatenate((bin_centers, [binning[-1]]))
+
+    fig, (ax_top, ax_bottom) = plt.subplots(2, 1, figsize=(10, 8), dpi=200, gridspec_kw={'height_ratios': [3, 1], 'hspace': 0.1})
+
+    # Top panel: distributions
+    ax_top.step(binning, bin_contents_source_norm, where='post', label='Source', color='tab:green')
+    ax_top.errorbar(bin_centers_extended, bin_contents_source_norm, yerr=bin_errors_source_norm, fmt='none', ecolor='tab:green', alpha=0.5, capsize=3)
+    ax_top.step(binning, bin_contents_target_norm, where='post', label='Target', color='tab:red')
+    ax_top.errorbar(bin_centers_extended, bin_contents_target_norm, yerr=bin_errors_target_norm, fmt='none', ecolor='tab:red', alpha=0.5, capsize=3)
+    ax_top.step(binning, bin_contents_reweighted_source_norm, where='post', label='Source (Reweighted)', color='tab:blue', linestyle='--')
+    ax_top.errorbar(bin_centers_extended, bin_contents_reweighted_source_norm, yerr=bin_errors_reweighted_source_norm, fmt='none', ecolor='tab:blue', alpha=0.5, capsize=3)
+
+    ax_top.set_ylabel(f'{var} (normalized by bin width)')
+    ax_top.set_title(f"Distribution of {var}. {slice_type} bin {bin_index}: [{low:g}, {high:g}] {unit}. Process: {process}, category: {category}")
+    ax_top.legend()
+    ax_top.grid(True, alpha=0.3)
+
+    # Bottom panel: difference
+    diff = (bin_contents_reweighted_source_norm - bin_contents_target_norm) / np.where(bin_contents_target_norm > 0, bin_contents_target_norm, 1.0)
+    # set diff to 0 if the target bin content is small compared to the maximum target bin content
+    diff = np.where(bin_contents_target_norm > 0.01 * np.max(bin_contents_target_norm), diff, 0.0)
+    diff_errors = np.sqrt(bin_errors_reweighted_source_norm**2 + bin_errors_target_norm**2) / np.where(bin_contents_target_norm > 0, bin_contents_target_norm, 1.0)
+    ax_bottom.step(binning, diff, where='post', label='(Reweighted - Target) / Target', color='tab:purple')
+    ax_bottom.errorbar(bin_centers_extended, diff, yerr=diff_errors, fmt='none', ecolor='tab:purple', alpha=0.5, capsize=3)
+    ax_bottom.axhline(0.0, color='black', linestyle='--', linewidth=1)
+    ax_bottom.set_xlabel(var)
+    ax_bottom.set_ylabel('Relative Difference')
+    ax_bottom.set_ylim(-0.1, 0.1)
+    ax_bottom.grid(True, alpha=0.3)
+    ax_bottom.legend()
+
+    # Set shared x-limits
+    x_min = binning[0]
+    x_max = binning[-1]
+    ax_top.set_xlim(x_min, x_max)
+    ax_bottom.set_xlim(x_min, x_max)
 
     fig.suptitle(
         f"Psi-prime. {slice_type} bin {bin_index}: [{low:g}, {high:g}] {unit}. "
@@ -325,7 +379,7 @@ def save_psi_prime_slice_plot(
     output_name = f"PsiPrime_{slice_type}Slice_bin{bin_index}_{process}_{category}.png"
     fig.savefig(f"{pics_folder_name}{output_name}")
     print(f"Saved psi-prime slice plot to {output_name}")
-    plt.close()
+    plt.close(fig)
 
 
 def main():
@@ -466,9 +520,9 @@ def main():
     for var in drawing_feature_names:
         binning = drawing_feature_binnings[var]
         bin_centers = 0.5 * (binning[:-1] + binning[1:])
-        print(f"bin centers for variable {var}: {bin_centers}")
         bin_widths = np.diff(binning)
-        print(f"bin widths for variable {var}: {bin_widths}")
+        # print(f"bin centers for variable {var}: {bin_centers}")
+        # print(f"bin widths for variable {var}: {bin_widths}")
         bin_contents_source, _ = np.histogram(tree_source[var], bins=binning, density=False)
         bin_errors_source = np.sqrt(bin_contents_source)
         bin_contents_target, _ = np.histogram(target_df[var], bins=binning, density=False, weights=target_df['weight'])
@@ -478,19 +532,27 @@ def main():
 
         # Normalize by bin width
         bin_contents_source_norm = bin_contents_source / bin_widths
+        bin_contents_source_norm = np.concatenate(( bin_contents_source_norm, [0]))
         bin_errors_source_norm = bin_errors_source / bin_widths
+        bin_errors_source_norm = np.concatenate(( bin_errors_source_norm, [0]))
         bin_contents_target_norm = bin_contents_target / bin_widths
+        bin_contents_target_norm = np.concatenate(( bin_contents_target_norm, [0]))
         bin_errors_target_norm = bin_errors_target / bin_widths
+        bin_errors_target_norm = np.concatenate(( bin_errors_target_norm, [0]))
         bin_contents_reweighted_source_norm = bin_contents_reweighted_source / bin_widths
+        bin_contents_reweighted_source_norm = np.concatenate(( bin_contents_reweighted_source_norm, [0]))
         bin_errors_reweighted_source_norm = bin_errors_reweighted_source / bin_widths
+        bin_errors_reweighted_source_norm = np.concatenate(( bin_errors_reweighted_source_norm, [0]))
+
+        bin_centers = np.concatenate(( bin_centers, [binning[-1]]))
 
         ax_top = axes[0, drawing_feature_names.index(var)]
-        ax_top.step(bin_centers, bin_contents_source_norm, where='mid', label='Source', color='tab:green')
-        ax_top.errorbar(bin_centers - bin_widths/4., bin_contents_source_norm, yerr=bin_errors_source_norm, fmt='none', ecolor='tab:green', alpha=0.5)
-        ax_top.step(bin_centers, bin_contents_target_norm, where='mid', label='Target', color='tab:red')
+        ax_top.step(binning, bin_contents_source_norm, where='post', label='Source', color='tab:green')
+        ax_top.errorbar(bin_centers, bin_contents_source_norm, yerr=bin_errors_source_norm, fmt='none', ecolor='tab:green', alpha=0.5)
+        ax_top.step(binning, bin_contents_target_norm, where='post', label='Target', color='tab:red')
         ax_top.errorbar(bin_centers, bin_contents_target_norm, yerr=bin_errors_target_norm, fmt='none', ecolor='tab:red', alpha=0.5)
-        ax_top.step(bin_centers, bin_contents_reweighted_source_norm, where='mid', label='Source (Reweighted)', color='tab:blue', linestyle='--')
-        ax_top.errorbar(bin_centers + bin_widths/4., bin_contents_reweighted_source_norm, yerr=bin_errors_reweighted_source_norm, fmt='none', ecolor='tab:blue', alpha=0.5)
+        ax_top.step(binning, bin_contents_reweighted_source_norm, where='post', label='Source (Reweighted)', color='tab:blue', linestyle='--')
+        ax_top.errorbar(bin_centers, bin_contents_reweighted_source_norm, yerr=bin_errors_reweighted_source_norm, fmt='none', ecolor='tab:blue', alpha=0.5)
 
         ax_top.set_xlabel(var)
         ax_top.set_title(f"Distribution of {var} for category {category}")
@@ -499,7 +561,7 @@ def main():
         # compute difference between reweighted source and target distributions
         diff = ( bin_contents_reweighted_source_norm - bin_contents_target_norm ) / np.where(bin_contents_target_norm > 0, bin_contents_target_norm, 1.0)
         diff_errors = np.sqrt(bin_errors_reweighted_source_norm**2 + bin_errors_target_norm**2) / np.where(bin_contents_target_norm > 0, bin_contents_target_norm, 1.0)
-        ax_bottom.step(bin_centers, diff, where='mid', label='Reweighted Source - Target', color='tab:purple')
+        ax_bottom.step(binning, diff, where='post', label='Reweighted Source - Target', color='tab:purple')
         ax_bottom.errorbar(bin_centers, diff, yerr=diff_errors, fmt='none', ecolor='tab:purple', alpha=0.5)
         ax_bottom.axhline(0.0, color='black', linestyle='--', linewidth=1)
         ax_bottom.set_xlabel(var)
@@ -522,6 +584,227 @@ def main():
     print(f"Saved combined distribution plot to {output_name}")
     plt.close()
 
+    # time to perform the check of each slice in recoil and muon pt, and plot the mean of psi-prime in each slice for source, target and reweighted source
+    # Use the style that I used for the global projetion plots, do not use predefinite functions
+
+    # Recoil slices
+    print("\n=== Analyzing recoil slices ===")
+    recoil_means_source = []
+    recoil_means_target = []
+    recoil_means_reweighted = []
+    recoil_bin_centers = 0.5 * (RECOIL_BIN_EDGES_MEV[:-1] + RECOIL_BIN_EDGES_MEV[1:])
+    recoil_errors_source = []
+    recoil_errors_target = []
+    recoil_errors_reweighted = []
+
+    for i in range(len(RECOIL_BIN_EDGES_MEV) - 1):
+        low = RECOIL_BIN_EDGES_MEV[i]
+        high = RECOIL_BIN_EDGES_MEV[i + 1]
+
+        # Create masks for source and target
+        source_mask = (tree_source['recoil_mev'] >= low) & (tree_source['recoil_mev'] < high)
+        target_mask = (target_df['recoil_mev'] >= low) & (target_df['recoil_mev'] < high)
+
+        n_source = np.sum(source_mask)
+        n_target = np.sum(target_mask)
+
+        if n_source > 0 and n_target > 0:
+            # Compute means for source
+            source_mean = np.average(tree_source.loc[source_mask, 'psi_prime'].to_numpy(),
+                                    weights=None)
+            recoil_means_source.append(source_mean)
+            recoil_errors_source.append(np.std(tree_source.loc[source_mask, 'psi_prime'].to_numpy()) / np.sqrt(n_source))
+
+            # Compute means for target
+            target_mean = np.average(target_df.loc[target_mask, 'psi_prime'].to_numpy(),
+                                    weights=target_df.loc[target_mask, 'weight'].to_numpy())
+            recoil_means_target.append(target_mean)
+            recoil_errors_target.append(np.std(target_df.loc[target_mask, 'psi_prime'].to_numpy()) / np.sqrt(n_target))
+
+            # Compute means for reweighted source
+            reweighted_mean = np.average(tree_source.loc[source_mask, 'psi_prime'].to_numpy(),
+                                        weights=tree_source.loc[source_mask, 'weight'].to_numpy())
+            recoil_means_reweighted.append(reweighted_mean)
+            recoil_errors_reweighted.append(np.std(tree_source.loc[source_mask, 'psi_prime'].to_numpy()) / np.sqrt(n_source))
+
+            print(f"Recoil slice [{low:g}, {high:g}] MEV: source_mean={source_mean:.3f}, target_mean={target_mean:.3f}, reweighted_mean={reweighted_mean:.3f}")
+        else:
+            print(f"Skipping recoil slice [{low:g}, {high:g}] MEV: source events={n_source}, target events={n_target}")
+
+    # Plot recoil slices
+    if len(recoil_means_source) > 0:
+        fig, (ax_main, ax_diff) = plt.subplots(2, 1, figsize=(8, 6), dpi=200, gridspec_kw={'height_ratios': [3, 1], 'hspace': 0.1})
+
+        recoil_bin_centers_valid = recoil_bin_centers[:len(recoil_means_source)]
+        ax_main.plot(recoil_bin_centers_valid, recoil_means_source, label='Source', color='tab:green')
+        ax_main.errorbar(recoil_bin_centers_valid, recoil_means_source, yerr=recoil_errors_source, fmt='none', ecolor='tab:green', alpha=0.5, capsize=3)
+        ax_main.plot(recoil_bin_centers_valid, recoil_means_target, label='Target', color='tab:red')
+        ax_main.errorbar(recoil_bin_centers_valid, recoil_means_target, yerr=recoil_errors_target, fmt='none', ecolor='tab:red', alpha=0.5, capsize=3)
+        ax_main.plot(recoil_bin_centers_valid, recoil_means_reweighted, label='Source (Reweighted)', color='tab:blue')
+        ax_main.errorbar(recoil_bin_centers_valid, recoil_means_reweighted, yerr=recoil_errors_reweighted, fmt='none', ecolor='tab:blue', alpha=0.5, capsize=3)
+        ax_main.set_ylabel(r'Mean $\psi^\prime$')
+        ax_main.set_title(f"Mean $\\psi^\\prime$ vs Recoil. Category: {category}")
+        ax_main.legend()
+        ax_main.grid(True, alpha=0.3)
+        ax_main.set_xlim(RECOIL_BIN_EDGES_MEV[0], RECOIL_BIN_EDGES_MEV[-1])
+
+        diff_reweighted_target = np.array(recoil_means_reweighted) - np.array(recoil_means_target)
+        diff_errors = np.sqrt(np.array(recoil_errors_reweighted)**2 + np.array(recoil_errors_target)**2)
+        ax_diff.plot(recoil_bin_centers_valid, diff_reweighted_target, label='Reweighted - Target', color='tab:purple')
+        ax_diff.errorbar(recoil_bin_centers_valid, diff_reweighted_target, yerr=diff_errors, fmt='none', ecolor='tab:purple', alpha=0.5, capsize=3)
+        ax_diff.axhline(0.0, color='black', linestyle='--', linewidth=1)
+        ax_diff.set_xlabel('Recoil [MEV]')
+        ax_diff.set_ylabel(r'$\Delta$ mean')
+        ax_diff.grid(True, alpha=0.3)
+        ax_diff.legend()
+        ax_diff.set_xlim(RECOIL_BIN_EDGES_MEV[0], RECOIL_BIN_EDGES_MEV[-1])
+
+        output_name = f"{output_folder}/MeanPsiPrime_vs_Recoil_{category}.png"
+        fig.savefig(output_name, bbox_inches='tight')
+        print(f"Saved mean psi-prime vs recoil plot to {output_name}")
+        plt.close(fig)
+
+    for i in range(len(RECOIL_BIN_EDGES_MEV) - 1):
+        low = RECOIL_BIN_EDGES_MEV[i]
+        high = RECOIL_BIN_EDGES_MEV[i + 1]
+        save_psi_prime_slice_plot(
+            source_df=tree_source,
+            target_df=target_df,
+            source_weights=np.ones(len(tree_source)),
+            target_weights=target_df['weight'].to_numpy(),
+            new_source_weights=tree_source['weight'].to_numpy(),
+            source_mask=(tree_source['recoil_mev'] >= low) & (tree_source['recoil_mev'] < high),
+            target_mask=(target_df['recoil_mev'] >= low) & (target_df['recoil_mev'] < high),
+            pics_folder_name=f"{output_folder}/",
+            process='all',
+            category=category,
+            slice_type='Recoil',
+            bin_index=i,
+            low=low,
+            high=high,
+            unit='MEV',
+        )
+
+
+    # Muon pT slices
+    print("\n=== Analyzing muon pT slices ===")
+    muon_pt_means_source = []
+    muon_pt_means_target = []
+    muon_pt_means_reweighted = []
+    muon_pt_bin_centers = 0.5 * (MUON_PT_BIN_EDGES_GEV[:-1] + MUON_PT_BIN_EDGES_GEV[1:])
+    muon_pt_errors_source = []
+    muon_pt_errors_target = []
+    muon_pt_errors_reweighted = []
+
+    for i in range(len(MUON_PT_BIN_EDGES_GEV) - 1):
+        low = MUON_PT_BIN_EDGES_GEV[i]
+        high = MUON_PT_BIN_EDGES_GEV[i + 1]
+
+        # Create masks for source and target
+        source_mask = (tree_source['muon_pt_gev'] >= low) & (tree_source['muon_pt_gev'] < high)
+        target_mask = (target_df['muon_pt_gev'] >= low) & (target_df['muon_pt_gev'] < high)
+
+        n_source = np.sum(source_mask)
+        n_target = np.sum(target_mask)
+
+        if n_source > 0 and n_target > 0:
+            # Compute means for source
+            source_mean = np.average(tree_source.loc[source_mask, 'psi_prime'].to_numpy(),
+                                    weights=None)
+            muon_pt_means_source.append(source_mean)
+            muon_pt_errors_source.append(np.std(tree_source.loc[source_mask, 'psi_prime'].to_numpy()) / np.sqrt(n_source))
+
+            # Compute means for target
+            target_mean = np.average(target_df.loc[target_mask, 'psi_prime'].to_numpy(),
+                                    weights=target_df.loc[target_mask, 'weight'].to_numpy())
+            muon_pt_means_target.append(target_mean)
+            muon_pt_errors_target.append(np.std(target_df.loc[target_mask, 'psi_prime'].to_numpy()) / np.sqrt(n_target))
+
+            # Compute means for reweighted source
+            reweighted_mean = np.average(tree_source.loc[source_mask, 'psi_prime'].to_numpy(),
+                                        weights=tree_source.loc[source_mask, 'weight'].to_numpy())
+            muon_pt_means_reweighted.append(reweighted_mean)
+            muon_pt_errors_reweighted.append(np.std(tree_source.loc[source_mask, 'psi_prime'].to_numpy()) / np.sqrt(n_source))
+
+            print(f"Muon pT slice [{low:g}, {high:g}] GEV: source_mean={source_mean:.3f}, target_mean={target_mean:.3f}, reweighted_mean={reweighted_mean:.3f}")
+        else:
+            print(f"Skipping muon pT slice [{low:g}, {high:g}] GEV: source events={n_source}, target events={n_target}")
+
+    # Plot muon pT slices
+    if len(muon_pt_means_source) > 0:
+        fig, (ax_main, ax_diff) = plt.subplots(2, 1, figsize=(8, 6), dpi=200, gridspec_kw={'height_ratios': [3, 1], 'hspace': 0.1})
+
+        muon_pt_bin_centers_valid = muon_pt_bin_centers[:len(muon_pt_means_source)]
+        ax_main.plot(muon_pt_bin_centers_valid, muon_pt_means_source, label='Source', color='tab:green')
+        ax_main.errorbar(muon_pt_bin_centers_valid, muon_pt_means_source, yerr=muon_pt_errors_source, fmt='none', ecolor='tab:green', alpha=0.5, capsize=3)
+        ax_main.plot(muon_pt_bin_centers_valid, muon_pt_means_target, label='Target', color='tab:red')
+        ax_main.errorbar(muon_pt_bin_centers_valid, muon_pt_means_target, yerr=muon_pt_errors_target, fmt='none', ecolor='tab:red', alpha=0.5, capsize=3)
+        ax_main.plot(muon_pt_bin_centers_valid, muon_pt_means_reweighted, label='Source (Reweighted)', color='tab:blue')
+        ax_main.errorbar(muon_pt_bin_centers_valid, muon_pt_means_reweighted, yerr=muon_pt_errors_reweighted, fmt='none', ecolor='tab:blue', alpha=0.5, capsize=3)
+        ax_main.set_ylabel(r'Mean $\psi^\prime$')
+        ax_main.set_title(f"Mean $\\psi^\\prime$ vs Muon pT. Category: {category}")
+        ax_main.legend()
+        ax_main.grid(True, alpha=0.3)
+        ax_main.set_xlim(MUON_PT_BIN_EDGES_GEV[0], MUON_PT_BIN_EDGES_GEV[-1])
+
+        diff_reweighted_target = np.array(muon_pt_means_reweighted) - np.array(muon_pt_means_target)
+        diff_errors = np.sqrt(np.array(muon_pt_errors_reweighted)**2 + np.array(muon_pt_errors_target)**2)
+        ax_diff.plot(muon_pt_bin_centers_valid, diff_reweighted_target, label='Reweighted - Target', color='tab:purple')
+        ax_diff.errorbar(muon_pt_bin_centers_valid, diff_reweighted_target, yerr=diff_errors, fmt='none', ecolor='tab:purple', alpha=0.5, capsize=3)
+        ax_diff.axhline(0.0, color='black', linestyle='--', linewidth=1)
+        ax_diff.set_xlabel('Muon pT [GEV]')
+        ax_diff.set_ylabel(r'$\Delta$ mean')
+        ax_diff.grid(True, alpha=0.3)
+        ax_diff.legend()
+        ax_diff.set_xlim(MUON_PT_BIN_EDGES_GEV[0], MUON_PT_BIN_EDGES_GEV[-1])
+
+        output_name = f"{output_folder}/MeanPsiPrime_vs_MuonPT_{category}.png"
+        fig.savefig(output_name, bbox_inches='tight')
+        print(f"Saved mean psi-prime vs muon pT plot to {output_name}")
+        plt.close(fig)
+
+    for i in range(len(MUON_PT_BIN_EDGES_GEV) - 1):
+        low = MUON_PT_BIN_EDGES_GEV[i]
+        high = MUON_PT_BIN_EDGES_GEV[i + 1]
+
+        if i == len(MUON_PT_BIN_EDGES_GEV) - 2:
+            source_slice_mask = (
+                    (tree_source['muon_pt_gev'].to_numpy() >= low)
+                    & (tree_source['muon_pt_gev'].to_numpy() <= high)
+            )
+            target_slice_mask = (
+                    (target_df['muon_pt_gev'].to_numpy() >= low)
+                    & (target_df['muon_pt_gev'].to_numpy() <= high)
+            )
+        else:
+            source_slice_mask = (
+                    (tree_source['muon_pt_gev'].to_numpy() >= low)
+                    & (tree_source['muon_pt_gev'].to_numpy() < high)
+            )
+            target_slice_mask = (
+                    (target_df['muon_pt_gev'].to_numpy() >= low)
+                    & (target_df['muon_pt_gev'].to_numpy() < high)
+            )
+
+
+
+        save_psi_prime_slice_plot(
+            source_df=tree_source,
+            target_df=target_df,
+            source_weights=np.ones(len(tree_source)),
+            target_weights=target_df['weight'].to_numpy(),
+            new_source_weights=tree_source['weight'].to_numpy(),
+            source_mask=(tree_source['muon_pt_gev'] >= low) & (tree_source['muon_pt_gev'] < high),
+            target_mask=(target_df['muon_pt_gev'] >= low) & (target_df['muon_pt_gev'] < high),
+            pics_folder_name=f"{output_folder}/",
+            process='all',
+            category=category,
+            slice_type='pt',
+            bin_index=i,
+            low=low,
+            high=high,
+            unit='GeV',
+        )
 
 
 
