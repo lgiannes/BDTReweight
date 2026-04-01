@@ -65,7 +65,7 @@ class NuisanceFlatTree:
         if max_events is not None:
             print(f"Limiting number of events to {max_events}.")
             self._flattree_vars = self._flattree_vars[:max_events]
-            self._total_xsec = np.sum(self._flattree_vars['fScaleFactor'])
+            self._flattree_vars['fScaleFactor'] = self._total_xsec / max_events
 
     def get_n_entries(self) -> int:
         """
