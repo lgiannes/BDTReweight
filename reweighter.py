@@ -15,6 +15,7 @@ class Reweighter(reweight.GBReweighter):
     def __init__(self, n_estimators=40, learning_rate=0.2, max_depth=3, min_samples_leaf=200, loss_regularization=5, gb_args=None):
         super().__init__(n_estimators, learning_rate, max_depth, min_samples_leaf, loss_regularization, gb_args)
         self.xsec_scale_factor = 1.0  # Cross-section scale factor (e.g., sigma_target / sigma_source)
+        self.norm_factor = 1.0  # Normalization factor to preserve total weights
 
     def predict_matched_total_weights(self, original : np.ndarray, original_weight : ArrayLike = None, target_weight : ArrayLike = None) -> ArrayLike:
         """
@@ -44,8 +45,28 @@ class Reweighter(reweight.GBReweighter):
             # Ensure sum(new_weights) = len(original) 
             new_weights = new_weights * len(new_weights)/np.sum(new_weights)
         else:
-            new_weights = (np.sum(target_weight)/(np.sum(new_weights)))*new_weights
+            new_weights = new_weights * ( np.sum(target_weight)/(np.sum(new_weights)) )
         return new_weights
+
+    def set_weight_normalization_factor(self, original : np.ndarray, original_weight : ArrayLike = None) -> float:
+        """
+        Compute the normalization factor to be applied to predicted weights
+        to match the total weights of the target sample.
+
+        Parameters
+        ----------
+        original : np.ndarray
+            The source sample arrays of neutrino MC variables.
+        original_weight : ArrayLike, optional
+            The old weights of source sample events.
+
+        Returns
+        ----------
+        float
+            The normalization factor to apply to predicted weights.
+        """
+        new_weights = self.predict_weights(original, original_weight=original_weight)
+        self.norm_factor = len(new_weights)/np.sum(new_weights)
 
     def predict_weight_single_event(self, features : ArrayLike) -> float:
         """
@@ -63,7 +84,7 @@ class Reweighter(reweight.GBReweighter):
         """
         X = np.asarray(features, dtype=np.float64).reshape(1, -1)
         w = self.predict_weights(X)
-        return w[0] * self.xsec_scale_factor
+        return w[0] * self.xsec_scale_factor * self.norm_factor
 
     def set_xsec_scale_factor(self, scale_factor: float):
         """
@@ -73,7 +94,7 @@ class Reweighter(reweight.GBReweighter):
         Parameters
         ----------
         scale_factor : float
-            The scale factor (typically sigma_target / sigma_source * (source_total / target_total))
+            The scale factor (typically sigma_target / sigma_source )
 
         Returns
         ----------
@@ -115,4 +136,5 @@ class Reweighter(reweight.GBReweighter):
         """
         with open(filepath, 'rb') as input:
             reweighter = pickle.load(input)
+
         return reweighter

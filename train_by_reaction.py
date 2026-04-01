@@ -302,7 +302,7 @@ def save_psi_prime_slice_plot(
         target_slice,
         variables=['psi_prime'],
         source_weights=source_weights_slice,
-        target_weights=target_weights_slice,
+        target_weights=target_weights_slice * float(len(source_train_p)) / len(target_train_p),
         new_source_weights=new_source_weights_slice,
         legends=['Source', 'Source (Reweighted)', 'Target'],
         variable_bins={'psi_prime': PSI_PRIME_BIN_EDGES},
@@ -368,8 +368,9 @@ print(f'Reweighting to target model: {target_model_name}')
 
 tree_source_train = uproot.open(source_path)['EventKinematics_truth'].arrays(library='pd')
 if args.max_events is not None:
-    print(f"Limiting number of events to {args.max_events} for source model.")
-    tree_source_train = tree_source_train.iloc[:args.max_events]
+    source_max_events = int(1.5 * args.max_events)
+    print(f"Limiting number of events to {source_max_events} for source model.")
+    tree_source_train = tree_source_train.iloc[:source_max_events]
 
 topologies = {0:'0p0n',1:'0pNn',2:'1p0n',3:'1pNn',4:'2p0n',5:'2pNn',6:'others'}
 tree_source_train['topology'] = tree_source_train['topology'].map(topologies)
@@ -406,7 +407,7 @@ source_total = {}
 for topology in topologies.values():
     source_train[topology] = tree_source_train[tree_source_train['topology']==topology].copy()
     # create a temporary test set 
-    source_test[topology] = source_train[topology].iloc[np.arange(0, int(len(source_train[topology])/7.53),1)].copy()
+    source_test[topology] = source_train[topology].iloc[np.arange(0, int(len(source_train[topology])/10.0),1)].copy()
     source_total[topology] = source_train[topology]
 
 # Load the target tree to compute the total cross section.
@@ -419,7 +420,7 @@ target_ccqelike_xsec = tree_target_train.get_total_xsec()
 if target_is_from_hadded:
     target_ccqelike_xsec /= 10 # divide by the number of files I hadded to get the correct total xsec for the target model (weird NUISANCE behavior...)
 if args.max_events is not None:
-    print(f"Limiting number of events to {args.max_events} for both source and target.")
+    print(f"Limiting number of events to {args.max_events} for target tree.")
     # cut all numpy arrays in the NuisanceFlatTree to max_events
     tree_target_train = NuisanceFlatTree(target_path, max_events=args.max_events)
 
@@ -542,25 +543,38 @@ print(f"TARGET: True QE events:      {np.sum(tree_target_train.get_mode()==1)} (
 print(f"TARGET: True 2p2h events:    {np.sum(tree_target_train.get_mode()==2)} ({np.sum(tree_target_train.get_mode()==2)/target_total*100:.2f} %)")
 print(f"TARGET: True RES+DIS events: {np.sum(tree_target_train.get_mode()>2)} ({np.sum(tree_target_train.get_mode()>2)/target_total*100:.2f} %)")
 
-scale_target_train *= float(source_total / target_total)
-
-print("Event rates:")
+print("Event rates (normalized to source number of events):")
 source_total_event_rate = scale_source_train * np.sum(source_train[category]['init_wgt'])
 source_qe_event_rate = scale_source_train * np.sum(source_train[category]['init_wgt'][source_train[category]['reactionCode']==1])
 source_2p2h_event_rate = scale_source_train * np.sum(source_train[category]['init_wgt'][source_train[category]['reactionCode']==2])
 source_resdis_event_rate = scale_source_train * np.sum(source_train[category]['init_wgt'][source_train[category]['reactionCode']>2])
-target_total_event_rate = scale_target_train * len(tree_target_train._flattree_vars)
-target_qe_event_rate = scale_target_train * np.sum(tree_target_train.get_mode()==1)
-target_2p2h_event_rate = scale_target_train * np.sum(tree_target_train.get_mode()==2)
-target_resdis_event_rate = scale_target_train * np.sum(tree_target_train.get_mode()>2)
-print(f"SOURCE QE event rate:      {source_qe_event_rate:.0f} ({source_qe_event_rate/source_total_event_rate*100:.2f} % )")
-print(f"SOURCE 2p2h event rate:    {source_2p2h_event_rate:.0f} ({source_2p2h_event_rate/source_total_event_rate*100:.2f} % )")
-print(f"SOURCE RES+DIS event rate: {source_resdis_event_rate:.0f} ({source_resdis_event_rate/source_total_event_rate*100:.2f} % )")
-print(f"TARGET QE event rate:      {target_qe_event_rate:.0f} ({target_qe_event_rate/target_total_event_rate*100:.2f} % )")
-print(f"TARGET 2p2h event rate:    {target_2p2h_event_rate:.0f} ({target_2p2h_event_rate/target_total_event_rate*100:.2f} % )")
-print(f"TARGET RES+DIS event rate: {target_resdis_event_rate:.0f} ({target_resdis_event_rate/target_total_event_rate*100:.2f} % )")
+target_total_event_rate = scale_target_train * float(source_total / target_total)* len(tree_target_train._flattree_vars)
+target_qe_event_rate = scale_target_train * float(source_total / target_total)* np.sum(tree_target_train.get_mode()==1)
+target_2p2h_event_rate = scale_target_train * float(source_total / target_total)* np.sum(tree_target_train.get_mode()==2)
+target_resdis_event_rate = scale_target_train * float(source_total / target_total)* np.sum(tree_target_train.get_mode()>2)
+percent_qe_source = source_qe_event_rate/source_total_event_rate*100
+print(f"SOURCE QE event rate:      {source_qe_event_rate:.0f} ({percent_qe_source:.2f} % )")
+percent_2p2h_source = source_2p2h_event_rate/source_total_event_rate*100
+print(f"SOURCE 2p2h event rate:    {source_2p2h_event_rate:.0f} ({percent_2p2h_source:.2f} % )")
+percent_oth_source = source_resdis_event_rate/source_total_event_rate*100
+print(f"SOURCE RES+DIS event rate: {source_resdis_event_rate:.0f} ({percent_oth_source:.2f} % )")
+percent_qe_target = target_qe_event_rate/target_total_event_rate*100
+print(f"TARGET QE event rate:      {target_qe_event_rate:.0f} ({percent_qe_target:.2f} % )")
+percent_2p2h_target = target_2p2h_event_rate/target_total_event_rate*100
+print(f"TARGET 2p2h event rate:    {target_2p2h_event_rate:.0f} ({percent_2p2h_target:.2f} % )")
+percent_oth_target = target_resdis_event_rate/target_total_event_rate*100
+print(f"TARGET RES+DIS event rate: {target_resdis_event_rate:.0f} ({percent_oth_target:.2f} % )")
 
-print(f"Scale target/source: {scale_target_train:.2e} = {target_ccqelike_xsec:.2e} / {source_ccqelike_xsec:.2e} * {source_total} / {target_total}")
+print(f"Scale target/source: {scale_target_train:.2f} = {target_ccqelike_xsec:.2e} / {source_ccqelike_xsec:.2e} ")
+# per process xsec ratios
+xsec_ratio = {}
+xsec_ratio['QE'] = scale_target_train * percent_qe_target / percent_qe_source if percent_qe_source > 0 else np.nan
+xsec_ratio['2p2h'] = scale_target_train * percent_2p2h_target / percent_2p2h_source if percent_2p2h_source > 0 else np.nan
+xsec_ratio['Oth'] = scale_target_train * percent_oth_target / percent_oth_source if percent_oth_source > 0 else np.nan
+print("Cross section ratios (target/source):")
+print(f"|  QE: {xsec_ratio['QE']:.2f}")
+print(f"|  2p2h: {xsec_ratio['2p2h']:.2f}")
+print(f"|  Oth: {xsec_ratio['Oth']:.2f}")
 
 print(f"Training on variables: {', '.join(reweight_variables)}")
 
@@ -643,13 +657,14 @@ for process in ['Oth','2p2h','QE']:
     print("Fitting reweighter...")
     reweighter = Reweighter(n_estimators=100, learning_rate=0.4, max_depth=4, min_samples_leaf=30, gb_args={'subsample': 1.0})
     reweighter.fit(original=source_train_p[reweight_variables], target=target_train_p[reweight_variables],
-                   target_weight=target_train_p['weight'],
+                   # target_weight=target_train_p['weight'],
                    # original_weight=None
                    )
+    reweighter.set_weight_normalization_factor(original=source_train_p[reweight_variables])
+    reweighter.set_xsec_scale_factor(xsec_ratio[process])
 
-    # Set the cross-section scale factor in the reweighter so it's included in the pickle file
-    reweighter.set_xsec_scale_factor(scale_target_train)
-    print(f"Set cross-section scale factor in reweighter to {scale_target_train:.2e}")
+    print(f"Set cross-section scale factor in reweighter to {reweighter.xsec_scale_factor:.2f}")
+    print(f"Set weight normalization factor in reweighter to {reweighter.norm_factor:.2f}")
 
     print("Saving model ...", end='')
     gb_model = getattr(reweighter, '_gb', getattr(reweighter, 'gb'))
@@ -667,12 +682,12 @@ for process in ['Oth','2p2h','QE']:
     test_weights = reweighter.predict_matched_total_weights(
         source_test_p[reweight_variables],
         # original_weight=None,
-        target_weight=target_test_p['weight']
+        target_weight=target_test_p['weight'] * float(len(source_test_p)) / len(target_test_p)
     )
     all_weights = reweighter.predict_matched_total_weights(
         source_train_p[reweight_variables],
         # original_weight=None,
-        target_weight=target_train_p['weight']
+        target_weight=target_train_p['weight'] * float(len(source_train_p)) / len(target_train_p)
     )
 
     target_n_events = np.sum(target_test_p['weight'])
@@ -685,7 +700,7 @@ for process in ['Oth','2p2h','QE']:
     fig = draw_source_target_distributions_and_ratio(source_train_p, target_train_p,
         variables = drawing_variables,
         source_weights = source_train_p['init_wgt'],
-        target_weights = target_train_p['weight'],
+        target_weights = target_train_p['weight'] * float(len(source_train_p)) / len(target_train_p),
         new_source_weights = all_weights,
         legends = ['Source', 'Source (Reweighted)', 'Target'],
         # xlabels = [particle_variable_to_latex(var) for var in drawing_variables],
@@ -702,7 +717,7 @@ for process in ['Oth','2p2h','QE']:
     fig = draw_source_target_distributions_and_ratio(source_train_p, target_train_p,
          variables = drawing_variables,
          source_weights = source_train_p['init_wgt'],
-         target_weights = target_train_p['weight'],
+         target_weights = target_train_p['weight'] * float(len(source_train_p)) / len(target_train_p),
          new_source_weights = all_weights,
             legends = ['Source', 'Source (Reweighted)', 'Target'],
          # xlabels = [particle_variable_to_latex(var) for var in drawing_variables],
@@ -721,6 +736,9 @@ for process in ['Oth','2p2h','QE']:
     # (already computed above; just reuse here)
     source_weights_np = source_train_p['init_wgt'].to_numpy()
     target_weights_np = target_train_p['weight'].to_numpy()
+
+    print(f"Source weights average: {np.mean(source_weights_np):.4e}, length: {len(source_weights_np)}")
+    print(f"Target weights average: {np.mean(target_weights_np):.4e}, length: {len(target_weights_np)}")
 
     print("Producing per-process psi-prime plots in muon pT slices...")
     pt_centers = 0.5 * (MUON_PT_BIN_EDGES_GEV[:-1] + MUON_PT_BIN_EDGES_GEV[1:])
@@ -915,177 +933,379 @@ for process in ['Oth','2p2h','QE']:
     print(f"Total event rate before reweighting for process {process}: {source_n_events_before:.2f}")
     print(f"Total event rate after reweighting for process {process}: {source_n_events_after:.2f}")
 
+# ============================================================================
+# COMPUTE AVERAGE WEIGHTS PER PROCESS AND GLOBAL
+# ============================================================================
+# Compute and print average weights per process and global
+print("\n" + "="*80)
+print(f"AVERAGE WEIGHTS SUMMARY. Model: {target_model_name} - {category}")
+print("="*80)
+
+# Convert dict_to_tree lists to numpy arrays for easier indexing
+dict_to_tree_arrays = {key: np.array(val) for key, val in dict_to_tree.items()}
+
+process_average_weights = {}
+for process in ['Oth','2p2h','QE']:
+    process_pics_folder = f'{pics_folder_name}{process}/'
+    process_mask = np.asarray(tree_target_train.get_mask_topology(particle_counts = particle_counts, KE_thresholds = KE_thresholds), dtype=bool)
+
+    if process == 'QE':
+        source_mask = source_test[category]['reactionCode'] == 1
+        process_mask &= (tree_target_train.get_mode() == 1)
+    elif process == '2p2h':
+        source_mask = source_test[category]['reactionCode'] == 2
+        process_mask &= (tree_target_train.get_mode() == 2)
+    elif process == 'Oth':
+        source_mask = source_test[category]['reactionCode'] > 2
+        process_mask &= (tree_target_train.get_mode() > 2)
+
+    n_events = np.sum(source_mask)
+    if n_events > 0:
+        # Get the weights for this process from dict_to_tree
+        source_train_p = source_test[category][source_mask].copy()
+        # Reconstruct the weights by finding matching events in dict_to_tree by eventID
+        process_weights = []
+        for event_id in source_train_p['eventID'].to_numpy():
+            # Find this event in dict_to_tree by eventID
+            mask = dict_to_tree_arrays['eventID'] == event_id
+            if np.any(mask):
+                process_weights.append(dict_to_tree_arrays['weight'][mask][0])
+
+        if process_weights:
+            avg_weight = np.mean(process_weights)
+            total_weight = np.sum(process_weights)
+            process_average_weights[process] = avg_weight
+            print(f"Process {process:5s}: n_events={n_events:6d}, avg_weight={avg_weight:.3f}, total_weight={total_weight:.3f}")
+
+# Compute global average weight
+global_avg_weight = np.mean(dict_to_tree_arrays['weight'])
+global_total_weight = np.sum(dict_to_tree_arrays['weight'])
+print("-" * 80)
+print(f"Global       : n_events={len(dict_to_tree_arrays['weight']):6d}, avg_weight={global_avg_weight:.3f}, total_weight={global_total_weight:.3f}")
+print("="*80 + "\n")
+
+
+# ============================================================================
+# COMPUTE WEIGHTS FOR ENTIRE SOURCE TREE USING predict_weight_single_event
+# ============================================================================
+print("\n" + "="*80)
+print("WEIGHTS FROM predict_weight_single_event FOR ENTIRE SOURCE TREE")
+print("="*80)
+
+# Load the trained reweighters for each process
+reweighters = {}
+for process in ['Oth','2p2h','QE']:
+    pickle_output_file = output_model_path / target_model_name / process / f'GBReweighterModel_{category}.pkl'
+    try:
+        reweighters[process] = pickle.load(open(pickle_output_file, 'rb'))
+        print(f"Loaded reweighter for process {process} from {pickle_output_file}")
+    except Exception as e:
+        print(f"Warning: Could not load reweighter for process {process}: {e}")
+
+# Get the reweight variables for the category
+reweight_variables = CATEGORY_CONFIGS[category]['reweight_variables']
+
+# Initialize storage for all predicted weights
+all_predicted_weights = []
+
+all_processes_source_test = []
+
+# Loop through source training data and compute weights for each process
+for process in ['Oth','2p2h','QE']:
+    if process not in reweighters:
+        print(f"Skipping process {process} - reweighter not available")
+        continue
+
+    reweighter = reweighters[process]
+
+    # Get the source mask for this process
+    if process == 'QE':
+        source_mask = source_test[category]['reactionCode'] == 1
+    elif process == '2p2h':
+        source_mask = source_test[category]['reactionCode'] == 2
+    elif process == 'Oth':
+        source_mask = source_test[category]['reactionCode'] > 2
+
+    source_test[category]['recoil_gev'] = np.nan_to_num(source_test[category]['total_proton_KE'].to_numpy(), nan=0.0)
+    source_test[category]['psi_prime'] = get_psi_prime_from_fs_kinematics(
+        recoil_gev=source_test[category]['recoil_gev'].to_numpy(),
+        muon_px_beam=np.zeros_like(source_test[category]['leading_muon_py'].to_numpy()),
+        muon_py_beam=source_test[category]['leading_muon_py'].to_numpy(),
+        muon_pz_beam=source_test[category]['leading_muon_pz'].to_numpy(),
+    )
+
+    source_events = source_test[category][source_mask].copy()
+    n_events = len(source_events)
+    # print(f"Keys of source_events dataframe for process {process}: {list(source_events.columns)}")
+
+    # check that all features are in the source_events dataframe
+    missing_features = [var for var in reweight_variables if var not in source_events.columns]
+    if missing_features:
+        print(f"Error: Missing features in source_events for process {process}: {missing_features}")
+        exit(1)
+
+    if n_events > 0:
+        # Extract features for reweighting
+        features = source_events[reweight_variables].to_numpy()
+
+        # Compute weights for each event using predict_weight_single_event
+        process_weights = []
+        for i, feature_row in enumerate(features):
+            weight = reweighter.predict_weight_single_event(feature_row)
+            process_weights.append(weight)
+
+        # Store results
+        all_predicted_weights.extend(process_weights)
+
+        # Compute per-process statistics
+        avg_weight = np.mean(process_weights)
+        total_weight = np.sum(process_weights)
+        print(f"Process {process:5s}: n_events={n_events:6d}, avg_weight={avg_weight:.3f}, total_weight={total_weight:.3f}")
+
+        all_processes_source_test.append(source_events)
+
+# Concatenate all source test chunks into a single DataFrame
+if len(all_processes_source_test) > 0:
+    all_processes_source_test = pd.concat(all_processes_source_test, ignore_index=True)
+else:
+    all_processes_source_test = pd.DataFrame()
+
+# create a test target dataset of size equal to the total number of events in all_processes_source_test
+n_source_events = len(all_processes_source_test)
+all_processes_target_test = create_dataframe_from_nuisance(tree_target_train, variable_exprs=variable_exprs, mask=np.ones(len(tree_target_train._flattree_vars), dtype=bool))
+# Trim to match source size
+if n_source_events > 0 and len(all_processes_target_test) > n_source_events:
+    all_processes_target_test = all_processes_target_test.iloc[:n_source_events]
+
+# Compute derived variables for source test
+if n_source_events > 0:
+    source_muon_py = all_processes_source_test['leading_muon_py'].to_numpy()
+    source_muon_pz = all_processes_source_test['leading_muon_pz'].to_numpy()
+    source_muon_px = np.zeros_like(source_muon_py)
+
+    all_processes_source_test['muon_pt_gev'] = np.abs(source_muon_py)
+    all_processes_source_test['recoil_gev'] = np.nan_to_num(all_processes_source_test['total_proton_KE'].to_numpy(), nan=0.0)
+    all_processes_source_test['recoil_mev'] = 1000.0 * all_processes_source_test['recoil_gev']
+    all_processes_source_test['psi_prime'] = get_psi_prime_from_fs_kinematics(
+        recoil_gev=all_processes_source_test['recoil_gev'].to_numpy(),
+        muon_px_beam=source_muon_px,
+        muon_py_beam=source_muon_py,
+        muon_pz_beam=source_muon_pz,
+    )
+
+    # Compute derived variables for target test
+    target_muon_py = all_processes_target_test['leading_muon_py'].to_numpy()
+    target_muon_pz = all_processes_target_test['leading_muon_pz'].to_numpy()
+    target_muon_px = np.zeros_like(target_muon_py)
+
+    all_processes_target_test['muon_pt_gev'] = np.abs(target_muon_py)
+    all_processes_target_test['recoil_gev'] = np.nan_to_num(all_processes_target_test['total_proton_KE'].to_numpy(), nan=0.0)
+    all_processes_target_test['recoil_mev'] = 1000.0 * all_processes_target_test['recoil_gev']
+    all_processes_target_test['psi_prime'] = get_psi_prime_from_fs_kinematics(
+        recoil_gev=all_processes_target_test['recoil_gev'].to_numpy(),
+        muon_px_beam=target_muon_px,
+        muon_py_beam=target_muon_py,
+        muon_pz_beam=target_muon_pz,
+    )
 
 all_process_pics_folder = f'{pics_folder_name}all_processes/'
 os.makedirs(all_process_pics_folder, exist_ok=True)
 
-if len(all_source_plot_chunks) > 0 and len(all_target_plot_chunks) > 0:
-    all_source_plot = pd.concat(all_source_plot_chunks, ignore_index=True)
-    all_target_plot = pd.concat(all_target_plot_chunks, ignore_index=True)
+# Convert all_predicted_weights to numpy array for indexing
+all_predicted_weights_array = np.array(all_predicted_weights)
 
-    all_source_weights = all_source_plot['source_weight'].to_numpy()
-    all_reweighted_weights = all_source_plot['reweighted_weight'].to_numpy()
-    all_target_weights = all_target_plot['target_weight'].to_numpy()
+print(f"Size of all_processes_source_test: {len(all_processes_source_test)}, size of all_processes_target_test: {len(all_processes_target_test)}")
 
-    print("Producing all-process psi-prime plots in muon pT slices...")
-    pt_centers = 0.5 * (MUON_PT_BIN_EDGES_GEV[:-1] + MUON_PT_BIN_EDGES_GEV[1:])
-    mean_source_vs_pt = []
-    mean_target_vs_pt = []
-    mean_reweighted_vs_pt = []
-    for i in range(len(MUON_PT_BIN_EDGES_GEV) - 1):
-        low = MUON_PT_BIN_EDGES_GEV[i]
-        high = MUON_PT_BIN_EDGES_GEV[i + 1]
-        if i == len(MUON_PT_BIN_EDGES_GEV) - 2:
-            source_slice_mask = (
-                (all_source_plot['muon_pt_gev'].to_numpy() >= low)
-                & (all_source_plot['muon_pt_gev'].to_numpy() <= high)
-            )
-            target_slice_mask = (
-                (all_target_plot['muon_pt_gev'].to_numpy() >= low)
-                & (all_target_plot['muon_pt_gev'].to_numpy() <= high)
-            )
-        else:
-            source_slice_mask = (
-                (all_source_plot['muon_pt_gev'].to_numpy() >= low)
-                & (all_source_plot['muon_pt_gev'].to_numpy() < high)
-            )
-            target_slice_mask = (
-                (all_target_plot['muon_pt_gev'].to_numpy() >= low)
-                & (all_target_plot['muon_pt_gev'].to_numpy() < high)
-            )
+mean_source_vs_pt_all = []
+mean_target_vs_pt_all = []
+mean_reweighted_vs_pt_all = []
 
-        save_psi_prime_slice_plot(
-            source_df=all_source_plot,
-            target_df=all_target_plot,
-            source_weights=all_source_weights,
-            target_weights=all_target_weights,
-            new_source_weights=all_reweighted_weights,
-            source_mask=source_slice_mask,
-            target_mask=target_slice_mask,
-            pics_folder_name=all_process_pics_folder,
-            process='all',
-            category=category,
-            slice_type='pt',
-            bin_index=i,
-            low=low,
-            high=high,
-            unit='GeV',
+for i in range(len(MUON_PT_BIN_EDGES_GEV) - 1):
+    low = MUON_PT_BIN_EDGES_GEV[i]
+    high = MUON_PT_BIN_EDGES_GEV[i + 1]
+    if i == len(MUON_PT_BIN_EDGES_GEV) - 2:
+        source_slice_mask = (
+                (all_processes_source_test['muon_pt_gev'].to_numpy() >= low)
+                & (all_processes_source_test['muon_pt_gev'].to_numpy() <= high)
+        )
+        target_slice_mask = (
+                (all_processes_target_test['muon_pt_gev'].to_numpy() >= low)
+                & (all_processes_target_test['muon_pt_gev'].to_numpy() <= high)
+        )
+    else:
+        source_slice_mask = (
+                (all_processes_source_test['muon_pt_gev'].to_numpy() >= low)
+                & (all_processes_source_test['muon_pt_gev'].to_numpy() < high)
+        )
+        target_slice_mask = (
+                (all_processes_target_test['muon_pt_gev'].to_numpy() >= low)
+                & (all_processes_target_test['muon_pt_gev'].to_numpy() < high)
         )
 
-        mean_source_vs_pt.append(
-            _hist_density_mean(
-                all_source_plot['psi_prime'].to_numpy()[source_slice_mask],
-                all_source_weights[source_slice_mask],
-                PSI_PRIME_BIN_EDGES,
-            )
-        )
-        mean_target_vs_pt.append(
-            _hist_density_mean(
-                all_target_plot['psi_prime'].to_numpy()[target_slice_mask],
-                all_target_weights[target_slice_mask],
-                PSI_PRIME_BIN_EDGES,
-            )
-        )
-        mean_reweighted_vs_pt.append(
-            _hist_density_mean(
-                all_source_plot['psi_prime'].to_numpy()[source_slice_mask],
-                all_reweighted_weights[source_slice_mask],
-                PSI_PRIME_BIN_EDGES,
-            )
-        )
-
-    save_mean_vs_slice_plot(
-        x_centers=pt_centers,
-        source_means=mean_source_vs_pt,
-        target_means=mean_target_vs_pt,
-        reweighted_means=mean_reweighted_vs_pt,
-        x_label='Muon pT',
-        slice_name='pt',
+    print(f"average weight for this slice: {np.mean(all_predicted_weights_array[source_slice_mask]):.3f}")
+    print(f"Length of source slice: {np.sum(source_slice_mask)}, length of target slice: {np.sum(target_slice_mask)}")
+    save_psi_prime_slice_plot(
+        source_df=all_processes_source_test,
+        target_df=all_processes_target_test,
+        source_weights=np.ones(len(all_processes_source_test)),
+        target_weights=np.ones(len(all_processes_target_test)),
+        new_source_weights=all_predicted_weights_array,
+        source_mask=source_slice_mask,
+        target_mask=target_slice_mask,
+        pics_folder_name=all_process_pics_folder,
+        process="all",
+        category=category,
+        slice_type='pt',
+        bin_index=i,
+        low=low,
+        high=high,
         unit='GeV',
-        process='all',
-        category=category,
-        output_dir=all_process_pics_folder,
     )
 
-    print("Producing all-process psi-prime plots in recoil slices...")
-    recoil_centers = 0.5 * (RECOIL_BIN_EDGES_MEV[:-1] + RECOIL_BIN_EDGES_MEV[1:])
-    mean_source_vs_recoil = []
-    mean_target_vs_recoil = []
-    mean_reweighted_vs_recoil = []
-    for i in range(len(RECOIL_BIN_EDGES_MEV) - 1):
-        low = RECOIL_BIN_EDGES_MEV[i]
-        high = RECOIL_BIN_EDGES_MEV[i + 1]
-        if i == len(RECOIL_BIN_EDGES_MEV) - 2:
-            source_slice_mask = (
-                (all_source_plot['recoil_mev'].to_numpy() >= low)
-                & (all_source_plot['recoil_mev'].to_numpy() <= high)
-            )
-            target_slice_mask = (
-                (all_target_plot['recoil_mev'].to_numpy() >= low)
-                & (all_target_plot['recoil_mev'].to_numpy() <= high)
-            )
-        else:
-            source_slice_mask = (
-                (all_source_plot['recoil_mev'].to_numpy() >= low)
-                & (all_source_plot['recoil_mev'].to_numpy() < high)
-            )
-            target_slice_mask = (
-                (all_target_plot['recoil_mev'].to_numpy() >= low)
-                & (all_target_plot['recoil_mev'].to_numpy() < high)
-            )
+    mean_source_vs_pt_all.append(
+        _hist_density_mean(
+            all_processes_source_test['psi_prime'].to_numpy()[source_slice_mask],
+            np.ones_like(all_processes_source_test['psi_prime'].to_numpy()[source_slice_mask]),
+            PSI_PRIME_BIN_EDGES,
+        )
+    )
+    mean_target_vs_pt_all.append(
+        _hist_density_mean(
+            all_processes_target_test['psi_prime'].to_numpy()[target_slice_mask],
+            np.ones_like(all_processes_target_test['psi_prime'].to_numpy()[target_slice_mask]),
+            PSI_PRIME_BIN_EDGES,
+        )
+    )
+    mean_reweighted_vs_pt_all.append(
+        _hist_density_mean(
+            all_processes_source_test['psi_prime'].to_numpy()[source_slice_mask],
+            all_predicted_weights_array[source_slice_mask],
+            PSI_PRIME_BIN_EDGES,
+        )
+    )
 
-        save_psi_prime_slice_plot(
-            source_df=all_source_plot,
-            target_df=all_target_plot,
-            source_weights=all_source_weights,
-            target_weights=all_target_weights,
-            new_source_weights=all_reweighted_weights,
-            source_mask=source_slice_mask,
-            target_mask=target_slice_mask,
-            pics_folder_name=all_process_pics_folder,
-            process='all',
-            category=category,
-            slice_type='recoil',
-            bin_index=i,
-            low=low,
-            high=high,
-            unit='MeV',
-        )
+save_mean_vs_slice_plot(
+    x_centers=pt_centers,
+    source_means=mean_source_vs_pt_all,
+    target_means=mean_target_vs_pt_all,
+    reweighted_means=mean_reweighted_vs_pt_all,
+    x_label='Muon pT',
+    slice_name='pt',
+    unit='GeV',
+    process="all",
+    category=category,
+    output_dir=all_process_pics_folder,
+)
 
-        mean_source_vs_recoil.append(
-            _hist_density_mean(
-                all_source_plot['psi_prime'].to_numpy()[source_slice_mask],
-                all_source_weights[source_slice_mask],
-                PSI_PRIME_BIN_EDGES,
-            )
+# Produce recoil slices for all processes combined
+print("Producing all-processes psi-prime plots in recoil slices...")
+recoil_centers = 0.5 * (RECOIL_BIN_EDGES_MEV[:-1] + RECOIL_BIN_EDGES_MEV[1:])
+mean_source_vs_recoil_all = []
+mean_target_vs_recoil_all = []
+mean_reweighted_vs_recoil_all = []
+
+for i in range(len(RECOIL_BIN_EDGES_MEV) - 1):
+    low = RECOIL_BIN_EDGES_MEV[i]
+    high = RECOIL_BIN_EDGES_MEV[i + 1]
+    if i == len(RECOIL_BIN_EDGES_MEV) - 2:
+        source_slice_mask = (
+                (all_processes_source_test['recoil_mev'].to_numpy() >= low)
+                & (all_processes_source_test['recoil_mev'].to_numpy() <= high)
         )
-        mean_target_vs_recoil.append(
-            _hist_density_mean(
-                all_target_plot['psi_prime'].to_numpy()[target_slice_mask],
-                all_target_weights[target_slice_mask],
-                PSI_PRIME_BIN_EDGES,
-            )
+        target_slice_mask = (
+                (all_processes_target_test['recoil_mev'].to_numpy() >= low)
+                & (all_processes_target_test['recoil_mev'].to_numpy() <= high)
         )
-        mean_reweighted_vs_recoil.append(
-            _hist_density_mean(
-                all_source_plot['psi_prime'].to_numpy()[source_slice_mask],
-                all_reweighted_weights[source_slice_mask],
-                PSI_PRIME_BIN_EDGES,
-            )
+    else:
+        source_slice_mask = (
+                (all_processes_source_test['recoil_mev'].to_numpy() >= low)
+                & (all_processes_source_test['recoil_mev'].to_numpy() < high)
+        )
+        target_slice_mask = (
+                (all_processes_target_test['recoil_mev'].to_numpy() >= low)
+                & (all_processes_target_test['recoil_mev'].to_numpy() < high)
         )
 
-    save_mean_vs_slice_plot(
-        x_centers=recoil_centers,
-        source_means=mean_source_vs_recoil,
-        target_means=mean_target_vs_recoil,
-        reweighted_means=mean_reweighted_vs_recoil,
-        x_label='Recoil',
-        slice_name='recoil',
+    save_psi_prime_slice_plot(
+        source_df=all_processes_source_test,
+        target_df=all_processes_target_test,
+        source_weights=np.ones(len(all_processes_source_test)),
+        target_weights=np.ones(len(all_processes_target_test)),
+        new_source_weights=all_predicted_weights_array,
+        source_mask=source_slice_mask,
+        target_mask=target_slice_mask,
+        pics_folder_name=all_process_pics_folder,
+        process="all",
+        category=category,
+        slice_type='recoil',
+        bin_index=i,
+        low=low,
+        high=high,
         unit='MeV',
-        process='all',
-        category=category,
-        output_dir=all_process_pics_folder,
     )
+
+    mean_source_vs_recoil_all.append(
+        _hist_density_mean(
+            all_processes_source_test['psi_prime'].to_numpy()[source_slice_mask],
+            np.ones_like(all_processes_source_test['psi_prime'].to_numpy()[source_slice_mask]),
+            RECOIL_BIN_EDGES_MEV,
+        )
+    )
+    mean_target_vs_recoil_all.append(
+        _hist_density_mean(
+            all_processes_target_test['psi_prime'].to_numpy()[target_slice_mask],
+            np.ones_like(all_processes_target_test['psi_prime'].to_numpy()[target_slice_mask]),
+            RECOIL_BIN_EDGES_MEV,
+        )
+    )
+    mean_reweighted_vs_recoil_all.append(
+        _hist_density_mean(
+            all_processes_source_test['psi_prime'].to_numpy()[source_slice_mask],
+            all_predicted_weights_array[source_slice_mask],
+            RECOIL_BIN_EDGES_MEV,
+        )
+    )
+
+save_mean_vs_slice_plot(
+    x_centers=recoil_centers,
+    source_means=mean_source_vs_recoil_all,
+    target_means=mean_target_vs_recoil_all,
+    reweighted_means=mean_reweighted_vs_recoil_all,
+    x_label='Recoil',
+    slice_name='recoil',
+    unit='MeV',
+    process="all",
+    category=category,
+    output_dir=all_process_pics_folder,
+)
+
+
+
+
+# Create arrays for storage
+predicted_weights_array = np.array(all_predicted_weights)
+
+# Compute global statistics
+global_avg_predicted = np.mean(predicted_weights_array)
+global_total_predicted = np.sum(predicted_weights_array)
+print("-" * 80)
+print(f"Global       : n_events={len(predicted_weights_array):6d}, avg_weight={global_avg_predicted:.3f}, total_weight={global_total_predicted:.3f} [xsec ratio: {scale_target_train:.2f}]")
+print("="*80 + "\n")
+
+# Create a dataframe with the predicted weights
+# predicted_weights_df = pd.DataFrame({
+#     'eventID': event_ids_array,
+#     'reactionCode': reaction_codes_array,
+#     'predicted_weight': predicted_weights_array
+# })
+#
+# print(f"Created dataframe with {len(predicted_weights_df)} events and predicted weights")
+
+
+all_process_pics_folder = f'{pics_folder_name}all_processes/'
+os.makedirs(all_process_pics_folder, exist_ok=True)
+
+
 
 
 # sort dict_to_tree entries by originalTreeEntry

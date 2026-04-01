@@ -1,0 +1,277 @@
+
+# ============================================================================
+# BUILD TEST DATASETS WITH MATCHED SIZES AND COMPUTE PREDICTED WEIGHTS
+# ============================================================================
+print("\n" + "="*80)
+print("BUILDING TEST DATASETS WITH MATCHED SIZES")
+print("="*80)
+
+# Collect test data for all processes
+all_source_test_chunks = []
+all_target_test_chunks = []
+all_predicted_source_weights = []
+
+for process in ['Oth','2p2h','QE']:
+    if process not in reweighters:
+        continue
+
+    reweighter = reweighters[process]
+
+    # Recreate source and target test data for this process (same as training)
+    target_mask = np.asarray(tree_target_train.get_mask_topology(particle_counts=particle_counts, KE_thresholds=KE_thresholds), dtype=bool)
+
+    if process == 'QE':
+        source_mask = source_train[category]['reactionCode'] == 1
+        target_mask &= (tree_target_train.get_mode() == 1)
+    elif process == '2p2h':
+        source_mask = source_train[category]['reactionCode'] == 2
+        target_mask &= (tree_target_train.get_mode() == 2)
+    elif process == 'Oth':
+        source_mask = source_train[category]['reactionCode'] > 2
+        target_mask &= (tree_target_train.get_mode() > 2)
+
+    source_train_p = source_train[category][source_mask].copy()
+    target_train_p_process = create_dataframe_from_nuisance(tree_target_train, variable_exprs=variable_exprs, mask=target_mask)
+    target_train_p_process = transform_momentum_to_reaction_frame(target_train_p_process, selector_lepton='leading_muon', particle_names=particle_names)
+    target_train_p_process['weight'] = xsec_ratio[process]
+
+    # Create test samples (same ratio as before: 1/10 of source)
+    source_test_p = source_train_p.iloc[np.arange(0, int(len(source_train_p)/2), 1)].copy()
+
+    # Create target test with same number of rows as source test
+    n_source_test = len(source_test_p)
+    if n_source_test > len(target_train_p_process):
+        n_source_test = len(target_train_p_process)
+    target_test_p = target_train_p_process.iloc[:n_source_test].copy()
+
+    print(f"Process {process:5s}: source_test={len(source_test_p)}, target_test={len(target_test_p)}")
+
+
+
+    # Build derived variables for source test
+    source_test_muon_py = source_test_p['leading_muon_py'].to_numpy()
+    source_test_muon_pz = source_test_p['leading_muon_pz'].to_numpy()
+    source_test_muon_px = np.zeros_like(source_test_muon_py)
+
+    source_test_p['muon_pt_gev'] = np.abs(source_test_muon_py)
+    source_test_p['recoil_gev'] = np.nan_to_num(source_test_p['total_proton_KE'].to_numpy(), nan=0.0)
+    source_test_p['recoil_mev'] = 1000.0 * source_test_p['recoil_gev']
+    source_test_p['psi_prime'] = get_psi_prime_from_fs_kinematics(
+        recoil_gev=source_test_p['recoil_gev'].to_numpy(),
+        muon_px_beam=source_test_muon_px,
+        muon_py_beam=source_test_muon_py,
+        muon_pz_beam=source_test_muon_pz,
+    )
+
+    # Compute predicted source weights using predict_weight_single_event
+    features = source_test_p[reweight_variables].to_numpy()
+    predicted_weights = []
+    for feature_row in features:
+        weight = reweighter.predict_weight_single_event(feature_row)
+        predicted_weights.append(weight)
+    predicted_weights = np.array(predicted_weights)
+
+    # Build derived variables for target test
+    target_test_muon_py = target_test_p['leading_muon_py'].to_numpy()
+    target_test_muon_pz = target_test_p['leading_muon_pz'].to_numpy()
+    target_test_muon_px = np.zeros_like(target_test_muon_py)
+
+    target_test_p['muon_pt_gev'] = np.abs(target_test_muon_py)
+    target_test_p['recoil_gev'] = np.nan_to_num(target_test_p['total_proton_KE'].to_numpy(), nan=0.0)
+    target_test_p['recoil_mev'] = 1000.0 * target_test_p['recoil_gev']
+    target_test_p['psi_prime'] = get_psi_prime_from_fs_kinematics(
+        recoil_gev=target_test_p['recoil_gev'].to_numpy(),
+        muon_px_beam=target_test_muon_px,
+        muon_py_beam=target_test_muon_py,
+        muon_pz_beam=target_test_muon_pz,
+    )
+
+    # Store chunks
+    all_source_test_chunks.append(pd.DataFrame({
+        'psi_prime': source_test_p['psi_prime'].to_numpy(),
+        'muon_pt_gev': source_test_p['muon_pt_gev'].to_numpy(),
+        'recoil_mev': source_test_p['recoil_mev'].to_numpy(),
+        'source_weight': source_test_p['init_wgt'].to_numpy(),
+        'predicted_weight': predicted_weights,
+    }))
+    all_target_test_chunks.append(pd.DataFrame({
+        'psi_prime': target_test_p['psi_prime'].to_numpy(),
+        'muon_pt_gev': target_test_p['muon_pt_gev'].to_numpy(),
+        'recoil_mev': target_test_p['recoil_mev'].to_numpy(),
+        'target_weight': target_test_p['weight'].to_numpy(),
+    }))
+
+if len(all_source_test_chunks) > 0 and len(all_target_test_chunks) > 0:
+    all_source_test = pd.concat(all_source_test_chunks, ignore_index=True)
+    all_target_test = pd.concat(all_target_test_chunks, ignore_index=True)
+
+    print(f"\nLength of all_source_test: {len(all_source_test)}")
+    print(f"Length of all_target_test: {len(all_target_test)}")
+
+    all_source_weights = all_source_test['source_weight'].to_numpy()
+    all_predicted_weights = all_source_test['predicted_weight'].to_numpy()
+    all_target_weights = all_target_test['target_weight'].to_numpy()
+
+    print(f"Average source weight before reweighting: {np.mean(all_source_weights):.3e}, length: {len(all_source_weights)}")
+    print(f"Average predicted weight (via predict_weight_single_event): {np.mean(all_predicted_weights):.3e}, length: {len(all_predicted_weights)}")
+    print(f"Average target weight: {np.mean(all_target_weights):.3e}, length: {len(all_target_weights)}")
+
+    print("\nProducing all-process psi-prime plots in muon pT slices...")
+    pt_centers = 0.5 * (MUON_PT_BIN_EDGES_GEV[:-1] + MUON_PT_BIN_EDGES_GEV[1:])
+    mean_source_vs_pt = []
+    mean_target_vs_pt = []
+    mean_predicted_vs_pt = []
+    for i in range(len(MUON_PT_BIN_EDGES_GEV) - 1):
+        low = MUON_PT_BIN_EDGES_GEV[i]
+        high = MUON_PT_BIN_EDGES_GEV[i + 1]
+        if i == len(MUON_PT_BIN_EDGES_GEV) - 2:
+            source_slice_mask = (
+                (all_source_test['muon_pt_gev'].to_numpy() >= low)
+                & (all_source_test['muon_pt_gev'].to_numpy() <= high)
+            )
+            target_slice_mask = (
+                (all_target_test['muon_pt_gev'].to_numpy() >= low)
+                & (all_target_test['muon_pt_gev'].to_numpy() <= high)
+            )
+        else:
+            source_slice_mask = (
+                (all_source_test['muon_pt_gev'].to_numpy() >= low)
+                & (all_source_test['muon_pt_gev'].to_numpy() < high)
+            )
+            target_slice_mask = (
+                (all_target_test['muon_pt_gev'].to_numpy() >= low)
+                & (all_target_test['muon_pt_gev'].to_numpy() < high)
+            )
+
+        save_psi_prime_slice_plot(
+            source_df=all_source_test,
+            target_df=all_target_test,
+            source_weights=all_source_weights,
+            target_weights=np.ones_like(all_target_weights) * float(len(all_source_test)) / len(all_target_test),
+            new_source_weights=all_predicted_weights,
+            source_mask=source_slice_mask,
+            target_mask=target_slice_mask,
+            pics_folder_name=all_process_pics_folder,
+            process='all',
+            category=category,
+            slice_type='pt',
+            bin_index=i,
+            low=low,
+            high=high,
+            unit='GeV',
+        )
+
+        mean_source_vs_pt.append(
+            _hist_density_mean(
+                all_source_test['psi_prime'].to_numpy()[source_slice_mask],
+                all_source_weights[source_slice_mask],
+                PSI_PRIME_BIN_EDGES,
+            )
+        )
+        mean_target_vs_pt.append(
+            _hist_density_mean(
+                all_target_test['psi_prime'].to_numpy()[target_slice_mask],
+                all_target_weights[target_slice_mask],
+                PSI_PRIME_BIN_EDGES,
+            )
+        )
+        mean_predicted_vs_pt.append(
+            _hist_density_mean(
+                all_source_test['psi_prime'].to_numpy()[source_slice_mask],
+                all_predicted_weights[source_slice_mask],
+                PSI_PRIME_BIN_EDGES,
+            )
+        )
+
+    save_mean_vs_slice_plot(
+        x_centers=pt_centers,
+        source_means=mean_source_vs_pt,
+        target_means=mean_target_vs_pt,
+        reweighted_means=mean_predicted_vs_pt,
+        x_label='Muon pT',
+        slice_name='pt',
+        unit='GeV',
+        process='all',
+        category=category,
+        output_dir=all_process_pics_folder,
+    )
+
+    print("Producing all-process psi-prime plots in recoil slices...")
+    recoil_centers = 0.5 * (RECOIL_BIN_EDGES_MEV[:-1] + RECOIL_BIN_EDGES_MEV[1:])
+    mean_source_vs_recoil = []
+    mean_target_vs_recoil = []
+    mean_predicted_vs_recoil = []
+    for i in range(len(RECOIL_BIN_EDGES_MEV) - 1):
+        low = RECOIL_BIN_EDGES_MEV[i]
+        high = RECOIL_BIN_EDGES_MEV[i + 1]
+        if i == len(RECOIL_BIN_EDGES_MEV) - 2:
+            source_slice_mask = (
+                (all_source_test['recoil_mev'].to_numpy() >= low)
+                & (all_source_test['recoil_mev'].to_numpy() <= high)
+            )
+            target_slice_mask = (
+                (all_target_test['recoil_mev'].to_numpy() >= low)
+                & (all_target_test['recoil_mev'].to_numpy() <= high)
+            )
+        else:
+            source_slice_mask = (
+                (all_source_test['recoil_mev'].to_numpy() >= low)
+                & (all_source_test['recoil_mev'].to_numpy() < high)
+            )
+            target_slice_mask = (
+                (all_target_test['recoil_mev'].to_numpy() >= low)
+                & (all_target_test['recoil_mev'].to_numpy() < high)
+            )
+
+        save_psi_prime_slice_plot(
+            source_df=all_source_test,
+            target_df=all_target_test,
+            source_weights=all_source_weights,
+            target_weights=np.ones_like(all_target_weights) * float(len(all_source_test)) / len(all_target_test),
+            new_source_weights=all_predicted_weights,
+            source_mask=source_slice_mask,
+            target_mask=target_slice_mask,
+            pics_folder_name=all_process_pics_folder,
+            process='all',
+            category=category,
+            slice_type='recoil',
+            bin_index=i,
+            low=low,
+            high=high,
+            unit='MeV',
+        )
+
+        mean_source_vs_recoil.append(
+            _hist_density_mean(
+                all_source_test['psi_prime'].to_numpy()[source_slice_mask],
+                all_source_weights[source_slice_mask],
+                PSI_PRIME_BIN_EDGES,
+            )
+        )
+        mean_target_vs_recoil.append(
+            _hist_density_mean(
+                all_target_test['psi_prime'].to_numpy()[target_slice_mask],
+                all_target_weights[target_slice_mask],
+                PSI_PRIME_BIN_EDGES,
+            )
+        )
+        mean_predicted_vs_recoil.append(
+            _hist_density_mean(
+                all_source_test['psi_prime'].to_numpy()[source_slice_mask],
+                all_predicted_weights[source_slice_mask],
+                PSI_PRIME_BIN_EDGES,
+            )
+        )
+
+    save_mean_vs_slice_plot(
+        x_centers=recoil_centers,
+        source_means=mean_source_vs_recoil,
+        target_means=mean_target_vs_recoil,
+        reweighted_means=mean_predicted_vs_recoil,
+        x_label='Recoil',
+        slice_name='recoil',
+        unit='MeV',
+        process='all',
+        category=category,
+        output_dir=all_process_pics_folder,
+    )
