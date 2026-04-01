@@ -934,56 +934,56 @@ for process in ['Oth','2p2h','QE']:
     print(f"Total event rate before reweighting for process {process}: {source_n_events_before:.2f}")
     print(f"Total event rate after reweighting for process {process}: {source_n_events_after:.2f}")
 
-# ============================================================================
-# COMPUTE AVERAGE WEIGHTS PER PROCESS AND GLOBAL
-# ============================================================================
-# Compute and print average weights per process and global
-print("\n" + "="*80)
-print(f"AVERAGE WEIGHTS SUMMARY. Model: {target_model_name} - {category}")
-print("="*80)
-
-# Convert dict_to_tree lists to numpy arrays for easier indexing
-dict_to_tree_arrays = {key: np.array(val) for key, val in dict_to_tree.items()}
-
-process_average_weights = {}
-for process in ['Oth','2p2h','QE']:
-    process_pics_folder = f'{pics_folder_name}{process}/'
-    process_mask = np.asarray(tree_target_train.get_mask_topology(particle_counts = particle_counts, KE_thresholds = KE_thresholds), dtype=bool)
-
-    if process == 'QE':
-        source_mask = source_test[category]['reactionCode'] == 1
-        process_mask &= (tree_target_train.get_mode() == 1)
-    elif process == '2p2h':
-        source_mask = source_test[category]['reactionCode'] == 2
-        process_mask &= (tree_target_train.get_mode() == 2)
-    elif process == 'Oth':
-        source_mask = source_test[category]['reactionCode'] > 2
-        process_mask &= (tree_target_train.get_mode() > 2)
-
-    n_events = np.sum(source_mask)
-    if n_events > 0:
-        # Get the weights for this process from dict_to_tree
-        source_train_p = source_test[category][source_mask].copy()
-        # Reconstruct the weights by finding matching events in dict_to_tree by eventID
-        process_weights = []
-        for event_id in source_train_p['eventID'].to_numpy():
-            # Find this event in dict_to_tree by eventID
-            mask = dict_to_tree_arrays['eventID'] == event_id
-            if np.any(mask):
-                process_weights.append(dict_to_tree_arrays['weight'][mask][0])
-
-        if process_weights:
-            avg_weight = np.mean(process_weights)
-            total_weight = np.sum(process_weights)
-            process_average_weights[process] = avg_weight
-            print(f"Process {process:5s}: n_events={n_events:6d}, avg_weight={avg_weight:.3f}, total_weight={total_weight:.3f}")
-
-# Compute global average weight
-global_avg_weight = np.mean(dict_to_tree_arrays['weight'])
-global_total_weight = np.sum(dict_to_tree_arrays['weight'])
-print("-" * 80)
-print(f"Global       : n_events={len(dict_to_tree_arrays['weight']):6d}, avg_weight={global_avg_weight:.3f}, total_weight={global_total_weight:.3f}")
-print("="*80 + "\n")
+# # ============================================================================
+# # COMPUTE AVERAGE WEIGHTS PER PROCESS AND GLOBAL
+# # ============================================================================
+# # Compute and print average weights per process and global
+# print("\n" + "="*80)
+# print(f"AVERAGE WEIGHTS SUMMARY. Model: {target_model_name} - {category}")
+# print("="*80)
+#
+# # Convert dict_to_tree lists to numpy arrays for easier indexing
+# dict_to_tree_arrays = {key: np.array(val) for key, val in dict_to_tree.items()}
+#
+# process_average_weights = {}
+# for process in ['Oth','2p2h','QE']:
+#     process_pics_folder = f'{pics_folder_name}{process}/'
+#     process_mask = np.asarray(tree_target_train.get_mask_topology(particle_counts = particle_counts, KE_thresholds = KE_thresholds), dtype=bool)
+#
+#     if process == 'QE':
+#         source_mask = source_test[category]['reactionCode'] == 1
+#         process_mask &= (tree_target_train.get_mode() == 1)
+#     elif process == '2p2h':
+#         source_mask = source_test[category]['reactionCode'] == 2
+#         process_mask &= (tree_target_train.get_mode() == 2)
+#     elif process == 'Oth':
+#         source_mask = source_test[category]['reactionCode'] > 2
+#         process_mask &= (tree_target_train.get_mode() > 2)
+#
+#     n_events = np.sum(source_mask)
+#     if n_events > 0:
+#         # Get the weights for this process from dict_to_tree
+#         source_train_p = source_test[category][source_mask].copy()
+#         # Reconstruct the weights by finding matching events in dict_to_tree by eventID
+#         process_weights = []
+#         for event_id in source_train_p['eventID'].to_numpy():
+#             # Find this event in dict_to_tree by eventID
+#             mask = dict_to_tree_arrays['eventID'] == event_id
+#             if np.any(mask):
+#                 process_weights.append(dict_to_tree_arrays['weight'][mask][0])
+#
+#         if process_weights:
+#             avg_weight = np.mean(process_weights)
+#             total_weight = np.sum(process_weights)
+#             process_average_weights[process] = avg_weight
+#             print(f"Process {process:5s}: n_events={n_events:6d}, avg_weight={avg_weight:.3f}, total_weight={total_weight:.3f}")
+#
+# # Compute global average weight
+# global_avg_weight = np.mean(dict_to_tree_arrays['weight'])
+# global_total_weight = np.sum(dict_to_tree_arrays['weight'])
+# print("-" * 80)
+# print(f"Global       : n_events={len(dict_to_tree_arrays['weight']):6d}, avg_weight={global_avg_weight:.3f}, total_weight={global_total_weight:.3f}")
+# print("="*80 + "\n")
 
 
 # ============================================================================
