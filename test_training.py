@@ -499,7 +499,12 @@ def main():
             process = 'Oth'
 
         weight = reweighters[process].predict_weight_single_event(features)
-        # print(f"Event {i}: process={process}, features={features}, weight={weight:.3f}")
+        if i<500:
+            print(f"Event {i}: process={process}, weight={weight:.3f} features: ", end='')
+            for val in features:
+                print(f", {val:.7f}", end='')
+            print()
+
         all_weights.append(weight)
 
     # now I have the weights for all events in the source tree, I can apply them to the source tree and compare with the target tree

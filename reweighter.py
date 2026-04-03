@@ -84,6 +84,9 @@ class Reweighter(reweight.GBReweighter):
         """
         X = np.asarray(features, dtype=np.float64).reshape(1, -1)
         w = self.predict_weights(X)
+
+        print(f"SUPERVERBOSE-- w={w[0]} * {self.xsec_scale_factor} * {self.norm_factor} = {w[0] * self.xsec_scale_factor * self.norm_factor}")
+
         return w[0] * self.xsec_scale_factor * self.norm_factor
 
     def set_xsec_scale_factor(self, scale_factor: float):
