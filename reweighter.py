@@ -68,7 +68,7 @@ class Reweighter(reweight.GBReweighter):
         new_weights = self.predict_weights(original, original_weight=original_weight)
         self.norm_factor = len(new_weights)/np.sum(new_weights)
 
-    def predict_weight_single_event(self, features : ArrayLike) -> float:
+    def predict_weight_single_event(self, features : ArrayLike, verbose : bool = False) -> float:
         """
         Predict weights for a single event given its features.
 
@@ -77,6 +77,9 @@ class Reweighter(reweight.GBReweighter):
         features : ArrayLike
             The source sample features of neutrino MC variables
             (values of reweight variables).
+        verbose : bool, optional
+            If True, print the intermediate factors that make up the
+            returned weight.
 
         Returns
         ----------
@@ -85,7 +88,8 @@ class Reweighter(reweight.GBReweighter):
         X = np.asarray(features, dtype=np.float64).reshape(1, -1)
         w = self.predict_weights(X)
 
-        print(f"SUPERVERBOSE-- w={w[0]} * {self.xsec_scale_factor} * {self.norm_factor} = {w[0] * self.xsec_scale_factor * self.norm_factor}")
+        if verbose:
+            print(f"SUPERVERBOSE-- w={w[0]} * {self.xsec_scale_factor} * {self.norm_factor} = {w[0] * self.xsec_scale_factor * self.norm_factor}")
 
         return w[0] * self.xsec_scale_factor * self.norm_factor
 

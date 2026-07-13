@@ -51,7 +51,7 @@ CATEGORY_CONFIGS = {
             'leading_muon_px', 'leading_muon_py', 'leading_muon_pz', 'leading_muon_KE',
             'total_proton_px', 'total_proton_py', 'total_proton_pz', 'total_proton_KE',
         ],
-        'reweight_variables': ['total_proton_KE', 'leading_muon_py', 'leading_muon_pz'],
+        'reweight_variables': ['total_proton_KE', 'leading_muon_py', 'psi_prime'],
         'particle_names': ['total_proton'],
         'drawing_variables': ['total_proton_KE', 'leading_muon_py', 'leading_muon_pz', 'psi_prime', 'weight'],
     },
