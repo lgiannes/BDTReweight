@@ -1,0 +1,54 @@
+# Minimal example configuration for train_by_reaction_config.py.
+#
+# Single category (0p0n), trains on just total_proton_KE and leading_muon_py,
+# and uses coarse diagnostic binning to keep the number of output plots small.
+
+# Same source-file topology convention as the default config; kept in full
+# even though only 0p0n is used, since it describes the source ROOT file
+# itself rather than which category we choose to train on.
+topology_codes:
+  0: 0p0n
+  1: 0pNn
+  2: 1p0n
+  3: 1pNn
+  4: 2p0n
+  5: 2pNn
+  6: others
+
+ke_thresholds:
+  proton: 50000
+  neutron: 50000
+
+categories:
+  0p0n:
+    particle_counts: {muon: "==1", proton: "==0", neutron: "==0"}
+    # leading_muon_px/pz and total_proton_px/py/pz aren't training/drawing
+    # variables here, but they're still required: the psi_prime diagnostic and
+    # the reaction-frame transform always run internally and need them.
+    variable_exprs: [leading_muon_px, leading_muon_py, leading_muon_pz, total_proton_px, total_proton_py, total_proton_pz, total_proton_KE]
+    reweight_variables: [total_proton_KE, leading_muon_py]
+    particle_names: [total_proton]
+    drawing_variables: [total_proton_KE, leading_muon_py]
+
+processes:
+  - name: Oth
+    reaction_code_rule: ">2"
+    mode_rule: ">2"
+  - name: "2p2h"
+    reaction_code_rule: "==2"
+    mode_rule: "==2"
+  - name: QE
+    reaction_code_rule: "==1"
+    mode_rule: "==1"
+
+# Coarse bin edges keep the diagnostic slice plots to a handful of figures
+# instead of the dozen-plus produced by the default config.
+binning:
+  muon_pt_gev: [0.0, 0.4, 1.0, 2.5]
+  recoil_mev: [0.0, 160.0, 400.0, 1400.0]
+  psi_prime: [-10.0, -2.0, 0.0, 2.0, 10.0]
+
+output:
+  weight_tree_filename_template: "ReweightWeights_{playlist}_{model}_{category}_minimal.root"
+  weight_tree_name: "reweight_tree"
+  model_pickle_template: "GBReweighterModel_{category}.pkl"
