@@ -20,7 +20,8 @@ target_NEUTEDRMF="/eos/experiment/neutplatform/t2knd280/lgiannes/Minerva_tuples/
 target_NuWro_LFG="/eos/experiment/neutplatform/t2knd280/lgiannes/Minerva_tuples/TargetsForReweighting/flat_NuWro_CH_LFG_v2109_50M_CCQELike.root"
 target_GENIEv3="/eos/experiment/neutplatform/t2knd280/lgiannes/Minerva_tuples/TargetsForReweighting/flat_GENIE_G18_10b_02_11a_50M_CCQELike.root"
 
-
+target_RPWIA="/eos/experiment/neutplatform/t2knd280/lgiannes/Minerva_tuples/TargetsForReweighting/neut_MINERvAflux_RPWIA_all_NUISFLAT_CCQELike.root"
+target_EDRMF_EbMinus10="/eos/experiment/neutplatform/t2knd280/lgiannes/Minerva_tuples/TargetsForReweighting/neut_MINERvAflux_EDRMF_all_EbMinus10_NUISFLAT_CCQELike.root"
 # set the target model ID from the command line argument
 target_model_id="$1"
 
@@ -38,8 +39,14 @@ case "$target_model_id" in
   "GENIEv3")
     target=${target_GENIEv3}
     ;;
+  "NEUT-RPWIA")
+    target=${target_RPWIA}
+    ;;
+  "NEUT-EDRMF-EbM10")
+    target=${target_EDRMF_EbMinus10}
+    ;;
   *)
-    echo "Error: Unknown target model ID '$target_model_id'. Please use 'NEUT-SF', 'NEUT-EDRMF', 'NuWro-LFG', or 'GENIEv3'."
+    echo "Error: Unknown target model ID '$target_model_id'. Please use 'NEUT-SF', 'NEUT-EDRMF', 'NuWro-LFG', 'GENIEv3', 'RPWIA', or 'EDRMF-EbMinus10'."
     exit 1
     ;;
 esac

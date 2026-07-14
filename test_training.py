@@ -211,6 +211,26 @@ def _hist_density_mean(values, weights, bin_edges):
     return np.sum(updated_bin_content * bin_centers) / norm
 
 
+def _set_signed_log_yaxis(ax, values, linthresh=1e-3):
+    values = np.asarray(values, dtype=float)
+    finite = values[np.isfinite(values)]
+    if finite.size == 0:
+        ax.set_yscale('symlog', linthresh=linthresh)
+        ax.set_ylim(-1.0, 1.0)
+        return
+
+    max_abs = np.max(np.abs(finite))
+    if max_abs <= 0.0:
+        ax.set_yscale('symlog', linthresh=linthresh)
+        ax.set_ylim(-1.0, 1.0)
+        return
+
+    effective_linthresh = min(linthresh, 0.1 * max_abs)
+    effective_linthresh = max(effective_linthresh, 1e-12)
+    ax.set_yscale('symlog', linthresh=effective_linthresh)
+    ax.set_ylim(-1.2 * max_abs, 1.2 * max_abs)
+
+
 def save_mean_vs_slice_plot(
         x_centers,
         source_means,
@@ -262,6 +282,7 @@ def save_mean_vs_slice_plot(
     ax_diff.axhline(-0.015, color='black', linestyle='--', linewidth=1, alpha=0.5)
     ax_diff.set_xlabel(f'{x_label} [{unit}]')
     ax_diff.set_ylabel(r'$\Delta$ mean')
+    _set_signed_log_yaxis(ax_diff, diff_reweighted_source)
     ax_diff.grid(True, alpha=0.3)
     ax_diff.legend(loc='best', fontsize=8)
 
@@ -361,7 +382,8 @@ def save_psi_prime_slice_plot(
     ax_bottom.axhline(0.0, color='black', linestyle='--', linewidth=1)
     ax_bottom.set_xlabel(var)
     ax_bottom.set_ylabel('Relative Difference')
-    ax_bottom.set_ylim(-0.1, 0.1)
+    _set_signed_log_yaxis(ax_bottom, diff)
+    # ax_bottom.set_ylim(-0.1, 0.1)
     ax_bottom.grid(True, alpha=0.3)
     ax_bottom.legend()
 
@@ -571,8 +593,12 @@ def main():
         ax_bottom.axhline(0.0, color='black', linestyle='--', linewidth=1)
         ax_bottom.set_xlabel(var)
         ax_bottom.set_ylabel('Relative Difference rew - target')
-        ax_bottom.set_ylim(-0.1, 0.1)
+        _set_signed_log_yaxis(ax_bottom, diff)
+        # ax_bottom.set_ylim(-0.1, 0.1)
         ax_bottom.set_title(f"(Reweighted Source - Target) / Target")
+        if (var == 'psi_prime'):
+            ax_top.set_xlim(-5.0, 10.0)
+            ax_bottom.set_xlim(-5.0, 10.0)
         ax_bottom.legend()
 
         # Set shared x-limits for top and bottom plots
@@ -660,6 +686,7 @@ def main():
         ax_diff.axhline(0.0, color='black', linestyle='--', linewidth=1)
         ax_diff.set_xlabel('Recoil [MEV]')
         ax_diff.set_ylabel(r'$\Delta$ mean')
+        _set_signed_log_yaxis(ax_diff, diff_reweighted_target)
         ax_diff.grid(True, alpha=0.3)
         ax_diff.legend()
         ax_diff.set_xlim(RECOIL_BIN_EDGES_MEV[0], RECOIL_BIN_EDGES_MEV[-1])
@@ -759,6 +786,7 @@ def main():
         ax_diff.axhline(0.0, color='black', linestyle='--', linewidth=1)
         ax_diff.set_xlabel('Muon pT [GEV]')
         ax_diff.set_ylabel(r'$\Delta$ mean')
+        _set_signed_log_yaxis(ax_diff, diff_reweighted_target)
         ax_diff.grid(True, alpha=0.3)
         ax_diff.legend()
         ax_diff.set_xlim(MUON_PT_BIN_EDGES_GEV[0], MUON_PT_BIN_EDGES_GEV[-1])
