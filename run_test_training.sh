@@ -24,4 +24,4 @@ python3 ${module_path}/BDTReweight/test_training.py \
                     --source-file $source \
                     --target-file $target \
                     --reweighter-folder $reweighter_folder \
-                    --max-events 100000
+                    --max-events 200000
