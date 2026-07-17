@@ -627,6 +627,11 @@ def main():
     all_processes_source_test_list = []
     all_processes_target_test_list = []
     all_processes_weights_list = []
+    # Per-process-normalized source/target weights, so the combined "all
+    # processes" view is consistent (each process's target is scaled by its own
+    # xsec_ratio and its own source/target count ratio before being merged).
+    all_processes_source_weights_list = []
+    all_processes_target_weights_list = []
 
     for proc in processes:
         process = proc['name']
@@ -640,7 +645,12 @@ def main():
 
         target_train_cat = create_dataframe_from_nuisance(tree_target_train, variable_exprs=variable_exprs, mask=target_mask)
         target_train_cat = transform_momentum_to_reaction_frame(target_train_cat, selector_lepton='leading_muon', particle_names=particle_names)
-        target_train_cat['weight'] = scale_target_train
+        # Diagnostic target weight must use the PER-PROCESS cross-section ratio,
+        # not the global scale_target_train: the reweighted source carries
+        # xsec_ratio[process] (set via set_xsec_scale_factor below), so scaling
+        # the target by the global factor leaves a constant per-process offset
+        # equal to percent_target/percent_source in the comparison plots.
+        target_train_cat['weight'] = xsec_ratio[process]
 
         n_negative_ke = np.sum(target_train_cat['total_proton_KE'] < 0)
         if n_negative_ke > 0:
@@ -764,6 +774,13 @@ def main():
         all_processes_source_test_list.append(source_test_p)
         all_processes_target_test_list.append(target_test_p)
         all_processes_weights_list.append(single_event_weights)
+        # Bake the per-process source/target count equalization into the target
+        # weights here (target weight already = xsec_ratio[process]), so the
+        # combined plot needs no further global rescaling.
+        all_processes_source_weights_list.append(source_test_p['init_wgt'].to_numpy())
+        all_processes_target_weights_list.append(
+            target_test_p['weight'].to_numpy() * float(len(source_test_p)) / len(target_test_p)
+        )
 
     # ========================================================================
     # WEIGHTS FROM predict_weight_single_event FOR ALL PROCESSES COMBINED
@@ -775,30 +792,35 @@ def main():
     all_processes_source_test = pd.concat(all_processes_source_test_list, ignore_index=True) if all_processes_source_test_list else pd.DataFrame()
     all_processes_target_test = pd.concat(all_processes_target_test_list, ignore_index=True) if all_processes_target_test_list else pd.DataFrame()
     all_predicted_weights_array = np.concatenate(all_processes_weights_list) if all_processes_weights_list else np.array([])
+    all_processes_source_weights = np.concatenate(all_processes_source_weights_list) if all_processes_source_weights_list else np.array([])
+    all_processes_target_weights = np.concatenate(all_processes_target_weights_list) if all_processes_target_weights_list else np.array([])
 
     all_process_pics_folder = f'{pics_folder_name}all_processes/'
     os.makedirs(all_process_pics_folder, exist_ok=True)
 
     print(f"Size of all_processes_source_test: {len(all_processes_source_test)}, size of all_processes_target_test: {len(all_processes_target_test)}")
 
+    # The accumulated source/target weights are already fully normalized
+    # per process (target = xsec_ratio[process] x N_source/N_target), so pass
+    # n_source_train = n_target_train = 1 to avoid a further global rescaling.
     print("Producing all-processes psi-prime plots in muon pT slices...")
     produce_slice_diagnostics(
         all_processes_source_test, all_processes_target_test,
-        np.ones(len(all_processes_source_test)), np.ones(len(all_processes_target_test)), all_predicted_weights_array,
+        all_processes_source_weights, all_processes_target_weights, all_predicted_weights_array,
         slice_variable='muon_pt_gev', bin_edges=binning['muon_pt_gev'], unit='GeV', slice_type='pt',
         process_pics_folder=all_process_pics_folder, process='all', category=category,
         psi_prime_bin_edges=binning['psi_prime'],
-        n_source_train=len(all_processes_source_test), n_target_train=len(all_processes_target_test),
+        n_source_train=1, n_target_train=1,
     )
 
     print("Producing all-processes psi-prime plots in recoil slices...")
     produce_slice_diagnostics(
         all_processes_source_test, all_processes_target_test,
-        np.ones(len(all_processes_source_test)), np.ones(len(all_processes_target_test)), all_predicted_weights_array,
+        all_processes_source_weights, all_processes_target_weights, all_predicted_weights_array,
         slice_variable='recoil_mev', bin_edges=binning['recoil_mev'], unit='MeV', slice_type='recoil',
         process_pics_folder=all_process_pics_folder, process='all', category=category,
         psi_prime_bin_edges=binning['psi_prime'],
-        n_source_train=len(all_processes_source_test), n_target_train=len(all_processes_target_test),
+        n_source_train=1, n_target_train=1,
     )
 
     global_avg_predicted = np.mean(all_predicted_weights_array) if len(all_predicted_weights_array) else np.nan

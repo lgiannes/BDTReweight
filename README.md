@@ -70,3 +70,60 @@ A training run produces, per process (QE, 2p2h, Oth, ... as defined by
   file under the same `BDTreweight_outputs/` folder containing per-event
   weights for the target sample, named per the `output.weight_tree_filename_template`
   / `weight_tree_name` entries in the YAML config.
+
+## Validating a trained model (`test_training.py`)
+
+`test_training.py` does **not** train anything: it loads the trained
+reweighter pickles for one topology category and applies them to a source
+sample, producing diagnostic plots and a normalization audit that compare
+**source**, **target**, and **reweighted source** distributions of
+`psi_prime`. It exercises the finished models exactly as the production C++
+binding does (through `predict_weight_single_event`), reading the first
+`--max-events` events from the source and the *same number* from the target so
+the two are compared on an equal footing — which is what makes the overall
+normalization directly comparable between the two curves.
+
+Example invocation (see `run_test_training.sh`):
+
+```bash
+module_path="/path/to/fork_reweighting/"
+PYTHONPATH=${module_path}:${PYTHONPATH} \
+python3 ${module_path}/BDTReweight/test_training.py \
+    --source-file /path/to/ReweightSourceCCQELike_....root \
+    --target-file /path/to/neut_..._NUISFLAT_CCQELike.root \
+    --reweighter-folder /path/to/BDTreweight_outputs/NEUT-SF \
+    --max-events 100000
+```
+
+Arguments:
+* `--source-file` — source MC ROOT file (`EventKinematics_truth` tree).
+* `--target-file` — target NUISANCE flat tree (`FlatTree_VARS`).
+* `--reweighter-folder` — folder holding the trained pickles, with layout
+  `<process>/GBReweighterModel_<category>.pkl` for `QE`, `2p2h`, `Oth`.
+* `--max-events` — events read from source (and the matching count from
+  target); default `100000`.
+* `--category` — topology category to test (default `0p0n`).
+* `--output-folder` — where to write plots (default
+  `<reweighter-folder>/test_plots`).
+
+Outputs (in `--output-folder`), for each process group **QE**, **2p2h**,
+**Oth**, **QE+2p2h** (Oth excluded), and **all** processes combined:
+
+* `PsiPrimeGrid_MuonPT_<group>_<category>.png` — `psi_prime` distributions in a
+  5×3 grid of muon-pT slices (source / target / reweighted source overlaid).
+* `PsiPrimeGrid_SumTp_<group>_<category>.png` — the same in a 4×3 grid of
+  ΣT_p (recoil) slices.
+* `MeanPsiPrime_vs_MuonPT_<group>_<category>.png` /
+  `MeanPsiPrime_vs_SumTp_<group>_<category>.png` — mean `psi_prime` vs. the
+  slice variable, with a reweighted-minus-target residual panel.
+* `Distribution_all_vars_<category>.png` — combined source/target/reweighted
+  distributions of the reweight variables.
+
+It also prints an **overall-scale validation** table: per process, the mean
+per-event weight `mean(w)` versus the `xsec_scale_factor` baked into each
+pickle, and globally `mean(w)` versus the independently computed cross-section
+ratio `s = sigma_target / sigma_source`, plus the predicted reweighted cross
+section. This confirms the weights carry the intended normalization — a
+consistency/regression check, not a proof that `s` itself is correct (that
+depends on the two input cross sections being extracted on a matching
+per-nucleon basis).
