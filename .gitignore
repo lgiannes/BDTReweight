@@ -25,3 +25,8 @@ dist/
 # VSCode or other IDE settings (optional)
 .vscode/
 .idea/
+
+# ROOT ACLiC build artifacts
+usage_example_cpp/*.so
+usage_example_cpp/*.d
+usage_example_cpp/*_rdict.pcm
