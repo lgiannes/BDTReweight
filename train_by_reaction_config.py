@@ -506,6 +506,21 @@ def main():
     target_ccqelike_xsec = tree_target_train.get_total_xsec()
     if target_is_from_hadded:
         target_ccqelike_xsec /= 10
+
+    # Per-nucleon basis correction. NUISANCE reports the target cross section per
+    # total nucleon (incl. hydrogen for a composite CH target), while the source is
+    # normalized per A_source nucleon. Rescale the target xsec by A_target/A_source
+    # onto the source's per-nucleon basis so the total-xsec ratio s is consistent.
+    # For a carbon source vs a polystyrene (CH) target: A_source=12, A_target=13.
+    A_source = float(cfg.get('A_source', 1.0))
+    A_target = float(cfg.get('A_target', 1.0))
+    nucleon_basis_correction = A_target / A_source
+    if nucleon_basis_correction != 1.0:
+        print(f"Per-nucleon basis correction A_target/A_source = {A_target:g}/{A_source:g} "
+              f"= {nucleon_basis_correction:.4f} applied to target xsec "
+              f"({target_ccqelike_xsec:.3e} -> {target_ccqelike_xsec * nucleon_basis_correction:.3e})")
+        target_ccqelike_xsec *= nucleon_basis_correction
+
     if args.max_events is not None:
         print(f"Limiting number of events to {args.max_events} for target tree.")
         tree_target_train = NuisanceFlatTree(target_path, max_events=args.max_events)
@@ -541,7 +556,7 @@ def main():
     plt.close(fig)
 
     # GENIEv3 has a bug with events with zero proton KE. Remove them.
-    if target_model_name == 'GENIEv3':
+    if target_model_name.startswith('GENIEv3'):
         target_rows_before = tree_target_train.get_n_entries()
         positive_recoil_mask = np.asarray(tree_target_train.get_mask_positive_recoil_energy(), dtype=bool)
         tree_target_train.update_tree_with_mask(positive_recoil_mask)

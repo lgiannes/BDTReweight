@@ -11,8 +11,8 @@
 # total-xsec ratio s is on a consistent per-nucleon basis. Leave both equal for a
 # pure-carbon target (no correction); use A_source=12, A_target=13 for a carbon
 # source vs a polystyrene (CH) target.
-A_source: 1.0
-A_target: 1.0
+A_source: 12.0
+A_target: 13.0
 
 # Maps the integer 'topology' branch stored in the source ROOT file to a
 # category name. This is a property of how the source ntuple was produced,
