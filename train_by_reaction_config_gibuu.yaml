@@ -17,7 +17,7 @@ A_target: 1.0
 # Number of NUISANCE flat trees hadd'd into the target file. The extracted target
 # cross section is divided by this to undo the inflation from merging (each file's
 # fScaleFactor is per-file). Default 1 (single, un-merged target file).
-hadd_n_files: 1
+hadd_n_files: 18
 
 # Maps the integer 'topology' branch stored in the source ROOT file to a
 # category name. This is a property of how the source ntuple was produced,

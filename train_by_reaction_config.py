@@ -502,10 +502,17 @@ def main():
 
     # Load the target tree to compute the total cross section.
     tree_target_train = NuisanceFlatTree(target_path)
-    target_is_from_hadded = False
-    target_ccqelike_xsec = tree_target_train.get_total_xsec()
-    if target_is_from_hadded:
-        target_ccqelike_xsec /= 10
+    # Weighted CCQELike cross section: weighted generators (e.g. GiBUU) carry a
+    # per-event InputWeight, so sigma = sum(fScaleFactor * InputWeight). Unweighted
+    # samples have InputWeight == 1, reducing this to sum(fScaleFactor) (what
+    # get_total_xsec returns). hadd_n_files (yaml, default 1) undoes the inflation
+    # from hadd-ing that many NUISANCE flat trees into one file.
+    hadd_n_files = int(cfg.get('hadd_n_files', 1))
+    _target_fscale_full = np.asarray(tree_target_train._flattree_vars['fScaleFactor'], dtype=float)
+    _target_inwgt_full = np.asarray(tree_target_train._flattree_vars['InputWeight'], dtype=float)
+    target_ccqelike_xsec = float(np.sum(_target_fscale_full * _target_inwgt_full)) / hadd_n_files
+    if hadd_n_files != 1:
+        print(f"hadd correction: divided target xsec by hadd_n_files={hadd_n_files}")
 
     # Per-nucleon basis correction. NUISANCE reports the target cross section per
     # total nucleon (incl. hydrogen for a composite CH target), while the source is
@@ -598,9 +605,12 @@ def main():
     source_reaction_code = source_train[category]['reactionCode'].to_numpy()
     source_init_wgt = source_train[category]['init_wgt'].to_numpy()
     target_mode_all = tree_target_train.get_mode()
+    # Per-event target weight (InputWeight): process fractions must use the summed
+    # weight, not raw event counts, for weighted generators like GiBUU.
+    target_input_weight_all = np.asarray(tree_target_train._flattree_vars['InputWeight'], dtype=float)
 
     source_total_event_rate = scale_source_train * np.sum(source_init_wgt)
-    target_total_event_rate = scale_target_train * float(source_total / target_total) * target_total
+    target_total_event_rate = scale_target_train * float(source_total / target_total) * np.sum(target_input_weight_all)
 
     xsec_ratio = {}
     print("Cross section ratios (target/source):")
@@ -610,7 +620,7 @@ def main():
         proc_target_mask = apply_rule(target_mode_all, proc['mode_rule'])
 
         source_event_rate = scale_source_train * np.sum(source_init_wgt[proc_source_mask])
-        target_event_rate = scale_target_train * float(source_total / target_total) * np.sum(proc_target_mask)
+        target_event_rate = scale_target_train * float(source_total / target_total) * np.sum(target_input_weight_all[proc_target_mask])
 
         percent_source = source_event_rate / source_total_event_rate * 100 if source_total_event_rate > 0 else np.nan
         percent_target = target_event_rate / target_total_event_rate * 100 if target_total_event_rate > 0 else np.nan
@@ -643,14 +653,15 @@ def main():
         source_mask = apply_rule(source_train[category]['reactionCode'].to_numpy(), proc['reaction_code_rule'])
         target_mask &= apply_rule(tree_target_train.get_mode(), proc['mode_rule'])
 
-        target_train_cat = create_dataframe_from_nuisance(tree_target_train, variable_exprs=variable_exprs, mask=target_mask)
+        target_train_cat = create_dataframe_from_nuisance(tree_target_train, variable_exprs=variable_exprs + ['InputWeight'], mask=target_mask)
         target_train_cat = transform_momentum_to_reaction_frame(target_train_cat, selector_lepton='leading_muon', particle_names=particle_names)
-        # Diagnostic target weight must use the PER-PROCESS cross-section ratio,
-        # not the global scale_target_train: the reweighted source carries
-        # xsec_ratio[process] (set via set_xsec_scale_factor below), so scaling
-        # the target by the global factor leaves a constant per-process offset
-        # equal to percent_target/percent_source in the comparison plots.
-        target_train_cat['weight'] = xsec_ratio[process]
+        # Diagnostic target weight = per-process cross-section ratio x per-event
+        # InputWeight. The xsec_ratio (not the global scale_target_train) matches
+        # the factor the reweighted source carries (set via set_xsec_scale_factor);
+        # InputWeight weights the target distribution for weighted generators like
+        # GiBUU (== 1 for unweighted samples). The effective target count used to
+        # renormalize the plots is sum(InputWeight), not the raw row count.
+        target_train_cat['weight'] = xsec_ratio[process] * target_train_cat['InputWeight'].to_numpy()
 
         n_negative_ke = np.sum(target_train_cat['total_proton_KE'] < 0)
         if n_negative_ke > 0:
@@ -666,12 +677,19 @@ def main():
         source_test_p = source_train_p.iloc[np.arange(0, int(len(source_train_p) / 10), 1)].copy()
         target_test_p = target_train_p.copy()
 
+        # Effective (weighted) target counts -- used everywhere the diagnostics
+        # renormalize the target relative to the source, in place of raw row counts.
+        target_train_eff_n = float(np.sum(target_train_p['InputWeight'].to_numpy()))
+        target_test_eff_n = float(np.sum(target_test_p['InputWeight'].to_numpy()))
+
         print(f"Source sample shape: {source_train_p[reweight_variables].shape}")
         print(f"Target sample shape: {target_train_p[reweight_variables].shape}")
 
         print("Fitting reweighter...")
         reweighter = Reweighter(n_estimators=100, learning_rate=0.4, max_depth=4, min_samples_leaf=30, gb_args={'subsample': 1.0})
-        reweighter.fit(original=source_train_p[reweight_variables], target=target_train_p[reweight_variables])
+        # Fit to the InputWeight-weighted target distribution (weighted generators).
+        reweighter.fit(original=source_train_p[reweight_variables], target=target_train_p[reweight_variables],
+                       target_weight=target_train_p['InputWeight'].to_numpy())
         reweighter.set_weight_normalization_factor(original=source_train_p[reweight_variables])
         reweighter.set_xsec_scale_factor(xsec_ratio[process])
 
@@ -690,7 +708,7 @@ def main():
         # ROOT weight tree below (dict_to_tree) -- unrelated to diagnostics.
         all_weights = reweighter.predict_matched_total_weights(
             source_train_p[reweight_variables],
-            target_weight=target_train_p['weight'] * float(len(source_train_p)) / len(target_train_p),
+            target_weight=target_train_p['weight'] * float(len(source_train_p)) / target_train_eff_n,
         )
 
         # Diagnostics use predict_weight_single_event exclusively: this is the
@@ -712,7 +730,7 @@ def main():
             source_test_p, target_test_p,
             variables=drawing_variables,
             source_weights=source_test_p['init_wgt'],
-            target_weights=target_test_p['weight'] * float(len(source_test_p)) / len(target_test_p),
+            target_weights=target_test_p['weight'] * float(len(source_test_p)) / target_test_eff_n,
             new_source_weights=single_event_weights,
             legends=['Source', 'Source (Reweighted)', 'Target'],
         )
@@ -725,7 +743,7 @@ def main():
             source_test_p, target_test_p,
             variables=drawing_variables,
             source_weights=source_test_p['init_wgt'],
-            target_weights=target_test_p['weight'] * float(len(source_test_p)) / len(target_test_p),
+            target_weights=target_test_p['weight'] * float(len(source_test_p)) / target_test_eff_n,
             new_source_weights=single_event_weights,
             legends=['Source', 'Source (Reweighted)', 'Target'],
             shape_only=True,
@@ -746,7 +764,7 @@ def main():
             slice_variable='muon_pt_gev', bin_edges=binning['muon_pt_gev'], unit='GeV', slice_type='pt',
             process_pics_folder=process_pics_folder, process=process, category=category,
             psi_prime_bin_edges=binning['psi_prime'],
-            n_source_train=len(source_test_p), n_target_train=len(target_test_p),
+            n_source_train=len(source_test_p), n_target_train=target_test_eff_n,
         )
 
         print("Producing per-process psi-prime plots in recoil slices...")
@@ -755,7 +773,7 @@ def main():
             slice_variable='recoil_mev', bin_edges=binning['recoil_mev'], unit='MeV', slice_type='recoil',
             process_pics_folder=process_pics_folder, process=process, category=category,
             psi_prime_bin_edges=binning['psi_prime'],
-            n_source_train=len(source_test_p), n_target_train=len(target_test_p),
+            n_source_train=len(source_test_p), n_target_train=target_test_eff_n,
         )
 
         dict_process = {
@@ -779,7 +797,7 @@ def main():
         # combined plot needs no further global rescaling.
         all_processes_source_weights_list.append(source_test_p['init_wgt'].to_numpy())
         all_processes_target_weights_list.append(
-            target_test_p['weight'].to_numpy() * float(len(source_test_p)) / len(target_test_p)
+            target_test_p['weight'].to_numpy() * float(len(source_test_p)) / target_test_eff_n
         )
 
     # ========================================================================
