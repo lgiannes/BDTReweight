@@ -73,6 +73,15 @@ def perform_selection(input_file, output_file, sample, max_events=-1):
     with uproot.recreate(output_file) as fout:
         # fout.mktree(treename, filtered_branches)
         fout[treename] = filtered_branches
+        # Transfer the original flux histogram (and the event-rate histogram)
+        # unchanged, so downstream code (cross-section normalization, flux
+        # comparisons) still has them after the CCQELike selection.
+        fin = uproot.open(input_file)
+        fin_keys = {key.split(';')[0] for key in fin.keys()}
+        for aux in ('FlatTree_FLUX', 'FlatTree_EVT'):
+            if aux in fin_keys:
+                fout[aux] = fin[aux]
+                print(f"  Transferred {aux} from input to output.")
 
 
     print(f"Selection complete. Output written to {output_file}. Selected {np.sum(selection_mask)} out of {max_events} events.")
