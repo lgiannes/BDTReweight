@@ -420,6 +420,7 @@ def main():
     p.add_argument('--max_events', type=int, default=None, help='Maximum number of events to use for training (for both source and target).')
     p.add_argument('--plots_dir', type=str, default=None, help='Full output directory for plots. If set, this path is used directly.')
     p.add_argument('--category', type=str, default='0p0n', help='Reaction category to train on (e.g. 0p0n, 1p0n, etc.), as defined in the config file.')
+    p.add_argument('--hadd_n_files', type=int, default=None, help='Override the config hadd_n_files: number of NUISANCE flat trees hadd\'d into the target file (target xsec is divided by this).')
     args = p.parse_args()
 
     if args.module_path:
@@ -507,7 +508,7 @@ def main():
     # samples have InputWeight == 1, reducing this to sum(fScaleFactor) (what
     # get_total_xsec returns). hadd_n_files (yaml, default 1) undoes the inflation
     # from hadd-ing that many NUISANCE flat trees into one file.
-    hadd_n_files = int(cfg.get('hadd_n_files', 1))
+    hadd_n_files = int(args.hadd_n_files) if args.hadd_n_files is not None else int(cfg.get('hadd_n_files', 1))
     _target_fscale_full = np.asarray(tree_target_train._flattree_vars['fScaleFactor'], dtype=float)
     _target_inwgt_full = np.asarray(tree_target_train._flattree_vars['InputWeight'], dtype=float)
     target_ccqelike_xsec = float(np.sum(_target_fscale_full * _target_inwgt_full)) / hadd_n_files
