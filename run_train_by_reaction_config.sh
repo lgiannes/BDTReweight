@@ -16,6 +16,10 @@ if [ -z "$MINERVAEXE" ]; then
   source ${MINERVA}/setup_CCQENu.sh
 fi
 
+# The script imports `from BDTReweight...` at module load, before --module_path
+# is applied, so the PARENT of BDTReweight/ (i.e. ${MINERVA}) must be on PYTHONPATH.
+export PYTHONPATH="${MINERVA}:${PYTHONPATH}"
+
 # YAML config that drives the training (categories, processes, binning, A_source/
 # A_target, default hadd_n_files). The default file has A_source=A_target=1 and
 # hadd_n_files=1, which is correct for these CH/carbon MC targets.

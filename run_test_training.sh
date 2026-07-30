@@ -17,6 +17,11 @@ if [ -z "$MINERVAEXE" ]; then
   source ${MINERVA}/setup_CCQENu.sh
 fi
 
+# The scripts import `from BDTReweight...`, so the PARENT of BDTReweight/ (i.e.
+# ${MINERVA}) must be importable. test_training.py has no --module_path arg, so
+# this PYTHONPATH is the only way it finds the package.
+export PYTHONPATH="${MINERVA}:${PYTHONPATH}"
+
 source="/eos/experiment/neutplatform/t2knd280/lgiannes/Minerva_tuples/SourcesForReweighting/ReweightSourceCCQELike_ABCDEFGLMNOP.root"
 
 target_NEUTSF="/eos/experiment/neutplatform/t2knd280/lgiannes/Minerva_tuples/TargetsForReweighting/neut_MINERvAflux_SF_nu_all_NUISFLAT_CCQELike.root"
