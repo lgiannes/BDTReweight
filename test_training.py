@@ -578,6 +578,15 @@ def main():
     p.add_argument('--category', type=str, default='0p0n', choices=CATEGORY_CONFIGS.keys(), help="Interaction category to test (e.g., '0p0n').")
     p.add_argument('--output-folder', type=str, default=None,
                    help="Directory for the output plots. Defaults to '<reweighter-folder>/test_plots'.")
+    # These must match the values used at training time (train_by_reaction_config.py /
+    # its yaml), so the target xsec -- and hence the scale factor s -- recomputed here
+    # equals the one baked into the pickles.
+    p.add_argument('--hadd_n_files', type=int, default=1,
+                   help="Number of NUISANCE flat trees hadd'd into the target file; the target xsec is divided by this (default 1).")
+    p.add_argument('--A_source', type=float, default=1.0,
+                   help="Per-nucleon basis of the source xsec (default 1.0). Use 12 for a carbon source vs a CH target.")
+    p.add_argument('--A_target', type=float, default=1.0,
+                   help="Per-nucleon basis of the target xsec (default 1.0). Use 13 for a polystyrene (CH) target. Target xsec is scaled by A_target/A_source.")
 
     args = p.parse_args()
 
@@ -645,8 +654,23 @@ def main():
     target_df['recoil_mev'] = target_df['recoil_gev'] * 1000.0
     target_df['muon_pt_gev'] = np.abs(target_df['leading_muon_py'])
 
-    # total xsections
-    target_ccqelike_xsec = tree_target.get_total_xsec()
+    # total xsections. Mirror train_by_reaction_config.py exactly so the scale
+    # factor s recomputed here matches the one baked into the pickles:
+    # sigma = sum(fScaleFactor * InputWeight) / hadd_n_files * (A_target / A_source).
+    # get_total_xsec() alone would be wrong for hadd'd (N>1) or weighted (InputWeight!=1)
+    # targets. Unweighted single-file targets reduce to get_total_xsec().
+    _target_fscale = np.asarray(tree_target._flattree_vars['fScaleFactor'], dtype=float)
+    _target_inwgt = np.asarray(tree_target._flattree_vars['InputWeight'], dtype=float)
+    target_ccqelike_xsec = float(np.sum(_target_fscale * _target_inwgt)) / args.hadd_n_files
+    if args.hadd_n_files != 1:
+        print(f"hadd correction: divided target xsec by hadd_n_files={args.hadd_n_files}")
+    nucleon_basis_correction = args.A_target / args.A_source
+    if nucleon_basis_correction != 1.0:
+        print(f"Per-nucleon basis correction A_target/A_source = {args.A_target:g}/{args.A_source:g} "
+              f"= {nucleon_basis_correction:.4f} applied to target xsec "
+              f"({target_ccqelike_xsec:.3e} -> {target_ccqelike_xsec * nucleon_basis_correction:.3e})")
+        target_ccqelike_xsec *= nucleon_basis_correction
+
     source_file = ROOT.TFile(source_path)
     h_xsec_ccqelike = ROOT.TH1D(source_file.Get('h_eventRate_qelike_cross_section'))
     source_ccqelike_xsec = h_xsec_ccqelike.GetBinContent(1)

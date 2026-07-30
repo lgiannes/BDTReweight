@@ -36,6 +36,10 @@ target_SF_newflux="/eos/experiment/neutplatform/t2knd280/lgiannes/Minerva_tuples
 target_model_id="$1"
 category="${2:-0p0n}"
 
+# Must match the value passed to run_train_by_reaction_config.sh, so the target
+# xsec (hence the scale factor s) recomputed by test_training matches the pickles.
+hadd_n_files=1
+
 case "$target_model_id" in
   "NEUT-SF")            target=${target_NEUTSF} ;;
   "NEUT-EDRMF")        target=${target_NEUTEDRMF} ;;
@@ -43,8 +47,8 @@ case "$target_model_id" in
   "GENIEv3")           target=${target_GENIEv3} ;;
   "NEUT-RPWIA")        target=${target_RPWIA} ;;
   "NEUT-EDRMF-EbM10")  target=${target_EDRMF_EbMinus10} ;;
-  "NEUT-EDRMF-newflux") target=${target_EDRMF_newflux} ;;
-  "NEUT-SF-newflux")   target=${target_SF_newflux} ;;
+  "NEUT-EDRMF-newflux") target=${target_EDRMF_newflux}; hadd_n_files=20 ;;
+  "NEUT-SF-newflux")   target=${target_SF_newflux};    hadd_n_files=40 ;;
   *)
     echo "Error: Unknown target model ID '$target_model_id'. Please use 'NEUT-SF', 'NEUT-EDRMF', 'NuWro-LFG', 'GENIEv3', 'NEUT-RPWIA', 'NEUT-EDRMF-EbM10', 'NEUT-EDRMF-newflux', or 'NEUT-SF-newflux'."
     exit 1
@@ -62,4 +66,5 @@ python3 ${MINERVA}/BDTReweight/test_training.py \
                     --target-file $target \
                     --reweighter-folder ${reweighter_folder} \
                     --category ${category} \
+                    --hadd_n_files ${hadd_n_files} \
                     --output-folder ${reweighter_folder}/test_plots # --max-events 100000
