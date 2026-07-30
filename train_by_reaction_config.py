@@ -25,6 +25,11 @@ S_RE_GEV = 0.028
 K_F_GEV = 0.228
 E_SHIFT_GEV = 0.020
 
+# Labels for the psi-prime diagnostic plots (kept in sync with test_training.py).
+PSI_PRIME_LATEX = r'$\psi^{\prime}_{\rm vis}$'
+PROCESS_TITLES = {'QE': 'QE', '2p2h': '2p2h', 'Oth': 'Oth', 'QE+2p2h': 'QE + 2p2h', 'all': 'All processes'}
+SLICE_LATEX = {'pt': r'$p_T^{\mu}$', 'recoil': r'$\sum T_p$'}
+
 # Variables computed by add_derived_columns() (rather than pulled straight from
 # variable_exprs), and the raw variable_exprs entries each one needs to be computable.
 DERIVED_VARIABLE_DEPS = {
@@ -189,64 +194,101 @@ def save_mean_vs_slice_plot(
     plt.close(fig)
 
 
-def save_psi_prime_slice_plot(
+def plot_psiprime_grid(
     source_df,
     target_df,
     source_weights,
     target_weights,
     new_source_weights,
-    source_mask,
-    target_mask,
+    slice_values_source,
+    slice_values_target,
+    bin_edges,
+    psi_prime_bin_edges,
     pics_folder_name,
     process,
     category,
     slice_type,
-    bin_index,
-    low,
-    high,
+    slice_latex,
     unit,
-    psi_prime_bin_edges,
-    n_source_train,
-    n_target_train,
 ):
-    source_mask = np.asarray(source_mask, dtype=bool)
-    target_mask = np.asarray(target_mask, dtype=bool)
-    n_source = int(np.sum(source_mask))
-    n_target = int(np.sum(target_mask))
+    """Draw psi-prime distributions (Source, Target, Source Reweighted) in every
+    slice of `bin_edges`, one subplot per slice, on a single canvas (3 columns,
+    as many rows as needed). Compact replacement for the per-slice figures, in
+    the same style as test_training.py's grid."""
+    n_bins = len(bin_edges) - 1
+    n_cols = 3
+    n_rows = int(np.ceil(n_bins / n_cols))
 
-    if n_source == 0 or n_target == 0:
-        print(
-            f"Skipping {slice_type} slice [{low:g}, {high:g}] {unit}: "
-            f"source events={n_source}, target events={n_target}"
-        )
-        return
+    binning = np.asarray(psi_prime_bin_edges, dtype=float)
+    bin_widths = np.diff(binning)
 
-    source_slice = source_df.iloc[source_mask]
-    target_slice = target_df.iloc[target_mask]
-    source_weights_slice = np.asarray(source_weights, dtype=float)[source_mask]
-    target_weights_slice = np.asarray(target_weights, dtype=float)[target_mask]
-    new_source_weights_slice = np.asarray(new_source_weights, dtype=float)[source_mask]
+    slice_values_source = np.asarray(slice_values_source, dtype=float)
+    slice_values_target = np.asarray(slice_values_target, dtype=float)
+    source_psi_all = source_df['psi_prime'].to_numpy()
+    target_psi_all = target_df['psi_prime'].to_numpy()
+    source_weights = np.asarray(source_weights, dtype=float)
+    target_weights = np.asarray(target_weights, dtype=float)
+    new_source_weights = np.asarray(new_source_weights, dtype=float)
 
-    fig = draw_source_target_distributions_and_ratio(
-        source_slice,
-        target_slice,
-        variables=['psi_prime'],
-        source_weights=source_weights_slice,
-        target_weights=target_weights_slice * float(n_source_train) / n_target_train,
-        new_source_weights=new_source_weights_slice,
-        legends=['Source', 'Source (Reweighted)', 'Target'],
-        variable_bins={'psi_prime': psi_prime_bin_edges},
+    fig, axes = plt.subplots(
+        n_rows, n_cols,
+        figsize=(4.3 * n_cols, 3.4 * n_rows),
+        dpi=200,
+        squeeze=False,
     )
 
+    legend_handles_labels = None
+
+    for i in range(n_rows * n_cols):
+        row, col = divmod(i, n_cols)
+        ax = axes[row, col]
+        if i >= n_bins:
+            ax.axis('off')
+            continue
+
+        low, high = bin_edges[i], bin_edges[i + 1]
+        if i == n_bins - 1:
+            source_mask = (slice_values_source >= low) & (slice_values_source <= high)
+            target_mask = (slice_values_target >= low) & (slice_values_target <= high)
+        else:
+            source_mask = (slice_values_source >= low) & (slice_values_source < high)
+            target_mask = (slice_values_target >= low) & (slice_values_target < high)
+
+        if not np.any(source_mask) or not np.any(target_mask):
+            ax.axis('off')
+            continue
+
+        bin_contents_source = np.histogram(source_psi_all[source_mask], bins=binning, weights=source_weights[source_mask])[0] / bin_widths
+        bin_contents_target = np.histogram(target_psi_all[target_mask], bins=binning, weights=target_weights[target_mask])[0] / bin_widths
+        bin_contents_reweighted = np.histogram(source_psi_all[source_mask], bins=binning, weights=new_source_weights[source_mask])[0] / bin_widths
+
+        ax.step(binning, np.append(bin_contents_source, 0), where='post', color='tab:green', label='Source')
+        ax.step(binning, np.append(bin_contents_target, 0), where='post', color='tab:red', label='Target')
+        ax.step(binning, np.append(bin_contents_reweighted, 0), where='post', color='tab:blue', linestyle='--', label='Source (Reweighted)')
+
+        ax.set_title(f"{slice_latex} $\\in$ [{low:g}, {high:g}] {unit}")
+        ax.grid(alpha=0.25)
+        ax.set_xlim(binning[0], binning[-1])
+        if legend_handles_labels is None:
+            legend_handles_labels = ax.get_legend_handles_labels()
+
+        if col == 0:
+            ax.set_ylabel(rf'd$N$/d{PSI_PRIME_LATEX}')
+        ax.set_xlabel(PSI_PRIME_LATEX)
+
+    fig.tight_layout(rect=[0, 0, 1, 0.91], h_pad=1.5)
     fig.suptitle(
-        f"Psi-prime. {slice_type} bin {bin_index}: [{low:g}, {high:g}] {unit}. "
-        f"Process: {process}, category: {category}",
-        fontsize=16,
+        rf"{PSI_PRIME_LATEX} distributions in {slice_latex} slices"
+        rf" — {PROCESS_TITLES.get(process, process)}, category {category}",
+        y=0.98,
     )
-    output_name = f"PsiPrime_{slice_type}Slice_bin{bin_index}_{process}_{category}.png"
+    if legend_handles_labels is not None:
+        fig.legend(*legend_handles_labels, loc='upper center', bbox_to_anchor=(0.5, 0.94), ncol=3, frameon=False)
+
+    output_name = f"PsiPrimeGrid_{slice_type}_{process}_{category}.png"
     fig.savefig(f"{pics_folder_name}{output_name}")
-    print(f"Saved psi-prime slice plot to {output_name}")
-    plt.close()
+    print(f"Saved psi-prime grid plot to {output_name}")
+    plt.close(fig)
 
 
 def produce_slice_diagnostics(
@@ -266,7 +308,7 @@ def produce_slice_diagnostics(
     n_source_train,
     n_target_train,
 ):
-    """Produce per-slice psi_prime comparison plots plus a mean-vs-slice summary plot."""
+    """Produce a per-slice psi_prime grid plot plus a mean-vs-slice summary plot."""
     centers = 0.5 * (bin_edges[:-1] + bin_edges[1:])
     mean_source = []
     mean_target = []
@@ -288,30 +330,31 @@ def produce_slice_diagnostics(
             source_mask = (source_slice_var >= low) & (source_slice_var < high)
             target_mask = (target_slice_var >= low) & (target_slice_var < high)
 
-        save_psi_prime_slice_plot(
-            source_df=source_df,
-            target_df=target_df,
-            source_weights=source_weights_np,
-            target_weights=target_weights_np,
-            new_source_weights=predicted_weights,
-            source_mask=source_mask,
-            target_mask=target_mask,
-            pics_folder_name=process_pics_folder,
-            process=process,
-            category=category,
-            slice_type=slice_type,
-            bin_index=i,
-            low=low,
-            high=high,
-            unit=unit,
-            psi_prime_bin_edges=psi_prime_bin_edges,
-            n_source_train=n_source_train,
-            n_target_train=n_target_train,
-        )
-
         mean_source.append(_hist_density_mean(source_psi_prime[source_mask], source_weights_np[source_mask], psi_prime_bin_edges))
         mean_target.append(_hist_density_mean(target_psi_prime[target_mask], target_weights_np[target_mask], psi_prime_bin_edges))
         mean_reweighted.append(_hist_density_mean(source_psi_prime[source_mask], predicted_weights[source_mask], psi_prime_bin_edges))
+
+    # Per-slice psi-prime distributions on a single canvas (new grid style,
+    # replacing the old one-figure-per-bin plots). Target weights are put on the
+    # source training-count basis (as the per-bin plots used to do per slice).
+    target_scale = float(n_source_train) / n_target_train if n_target_train else 1.0
+    plot_psiprime_grid(
+        source_df=source_df,
+        target_df=target_df,
+        source_weights=source_weights_np,
+        target_weights=np.asarray(target_weights_np, dtype=float) * target_scale,
+        new_source_weights=predicted_weights,
+        slice_values_source=source_slice_var,
+        slice_values_target=target_slice_var,
+        bin_edges=bin_edges,
+        psi_prime_bin_edges=psi_prime_bin_edges,
+        pics_folder_name=process_pics_folder,
+        process=process,
+        category=category,
+        slice_type=slice_type,
+        slice_latex=SLICE_LATEX.get(slice_type, slice_type),
+        unit=unit,
+    )
 
     save_mean_vs_slice_plot(
         x_centers=centers,
